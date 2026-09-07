@@ -1,0 +1,28 @@
+# ── Environment & secrets ───────────────────────────────────────────────────
+.env
+
+# ── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── Virtual environments ───────────────────────────────────────────────────
+venv/
+env/
+.venv/
+
+# ── Django ───────────────────────────────────────────────────────────────────
+*.sqlite3
+db.sqlite3
+staticfiles/
+media/
+
+# ── Editor / OS clutter ─────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Local database (recreated by the launcher)
+db.sqlite3
+venv/.installed

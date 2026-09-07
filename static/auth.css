@@ -1,0 +1,289 @@
+/* ════════════════════════════════════════════════════════════════════════════
+   Lab Hub — auth.css
+   Shared styling for the sign-in and sign-out screens.
+   Same specimen-slide language as styles.css: ink field, graph-paper grid,
+   one white slide card, mono labels.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink:            #0F2231;
+  --ink-deep:       #081724;
+  --surface:        #FFFFFF;
+  --frost:          #F3F7F9;
+  --line:           #D8E1E8;
+  --methylene:      #1F5AA8;
+  --methylene-dk:   #16406F;
+  --methylene-edge: #B9D2EE;
+  --eosin:          #C8447A;
+  --malachite:      #17795A;
+  --safranin:       #BE3A2E;
+  --text:     #0F2231;
+  --text-mid: #4A6272;
+  --text-dim: #7C929F;
+
+  --f-display: 'Space Grotesk', system-ui, sans-serif;
+  --f-body:    'Inter', system-ui, sans-serif;
+  --f-mono:    'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--f-body);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  -webkit-font-smoothing: antialiased;
+
+  background-color: var(--ink-deep);
+  background-image:
+    radial-gradient(ellipse 900px 620px at 50% -14%, rgba(31,90,168,.34), transparent 70%),
+    linear-gradient(rgba(255,255,255,.032) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.032) 1px, transparent 1px);
+  background-size: 100% 100%, 28px 28px, 28px 28px;
+}
+
+:focus-visible { outline: 2px solid var(--methylene-edge); outline-offset: 3px; }
+
+/* ── The slide card ───────────────────────────────────────────────────────── */
+.auth-card {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 14px;
+  width: 100%;
+  max-width: 400px;
+  overflow: hidden;
+  box-shadow: 0 30px 70px rgba(0,0,0,.42);
+  animation: card-in .5s cubic-bezier(.22,1,.36,1) both;
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(18px) scale(.985); }
+  to   { opacity: 1; transform: none; }
+}
+
+.auth-body { padding: 38px 34px 30px; text-align: center; }
+
+.auth-mark {
+  width: 50px; height: 50px;
+  border-radius: 13px;
+  background: linear-gradient(150deg, var(--methylene) 0%, var(--ink) 100%);
+  margin: 0 auto 22px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(31,90,168,.3);
+}
+
+.auth-eyebrow {
+  font-family: var(--f-mono);
+  font-size: .6rem;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 9px;
+}
+
+.auth-card h1 {
+  font-family: var(--f-display);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: -.025em;
+  color: var(--text);
+  margin-bottom: 10px;
+}
+
+.auth-card p {
+  font-size: .875rem;
+  line-height: 1.6;
+  color: var(--text-mid);
+  margin-bottom: 26px;
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
+.auth-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 8px;
+  font-family: var(--f-body);
+  font-size: .9rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background .16s, border-color .16s, transform .1s;
+}
+.auth-btn:active { transform: scale(.985); }
+.auth-btn svg { width: 19px; height: 19px; flex-shrink: 0; }
+
+.auth-btn-google {
+  background: var(--ink);
+  color: #fff;
+  border-color: var(--ink);
+}
+.auth-btn-google:hover { background: var(--methylene-dk); border-color: var(--methylene-dk); }
+
+.auth-btn-primary {
+  background: var(--methylene);
+  color: #fff;
+  border-color: var(--methylene);
+}
+.auth-btn-primary:hover { background: var(--methylene-dk); border-color: var(--methylene-dk); }
+
+.auth-btn-danger {
+  background: var(--safranin);
+  color: #fff;
+  border-color: var(--safranin);
+}
+.auth-btn-danger:hover { background: #A32E24; border-color: #A32E24; }
+
+.auth-btn-ghost {
+  background: var(--surface);
+  color: var(--text-mid);
+  border-color: var(--line);
+}
+.auth-btn-ghost:hover { background: var(--frost); }
+
+.auth-btn-group { display: flex; flex-direction: column; gap: 9px; }
+
+/* ── Frosted footer band — the label end of the slide ─────────────────────── */
+.auth-foot {
+  background: var(--frost);
+  border-top: 1px solid var(--line);
+  padding: 13px 20px;
+  text-align: center;
+  font-family: var(--f-mono);
+  font-size: .585rem;
+  font-weight: 500;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.auth-foot a { color: var(--text-mid); text-decoration: none; }
+.auth-foot a:hover { color: var(--methylene); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/* ── Password sign-in form ────────────────────────────────────────────────── */
+.auth-form { text-align: left; }
+
+.auth-label {
+  display: block;
+  font-family: var(--f-mono);
+  font-size: .59rem;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--text-mid);
+  margin-bottom: 6px;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 11px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--f-body);
+  font-size: .9rem;
+  color: var(--text);
+  background: var(--surface);
+  transition: border-color .15s, box-shadow .15s;
+}
+.auth-input:focus {
+  outline: none;
+  border-color: var(--methylene);
+  box-shadow: 0 0 0 3px rgba(31,90,168,.12);
+}
+
+/* Divider between Google and password sign-in */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 22px 0 20px;
+  color: var(--text-dim);
+  font-family: var(--f-mono);
+  font-size: .58rem;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* Error / notice band */
+.auth-alert {
+  background: #FBEDEB;
+  border: 1px solid rgba(190,58,46,.22);
+  border-left: 3px solid var(--safranin);
+  border-radius: 3px;
+  padding: 11px 13px;
+  margin-bottom: 20px;
+  font-size: .82rem;
+  line-height: 1.55;
+  color: #8C2A21;
+  text-align: left;
+}
+
+/* ── DARK THEME ───────────────────────────────────────────────────────────
+   The sign-in screen already sits on a dark field, so dark mode mainly means
+   inverting the card itself. */
+:root { color-scheme: light; }
+
+:root[data-theme="dark"] {
+  --surface:        #121D26;
+  --frost:          #17242E;
+  --line:           #253540;
+  --methylene:      #5C9BE6;
+  --methylene-dk:   #7FB3EE;
+  --methylene-edge: #33587F;
+  --eosin:          #E871A6;
+  --malachite:      #3FC493;
+  --safranin:       #E97567;
+  --text:     #E4EDF3;
+  --text-mid: #9DB2C0;
+  --text-dim: #6B8292;
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] .auth-card {
+  border: 1px solid var(--line);
+  box-shadow: 0 30px 70px rgba(0,0,0,.6);
+}
+:root[data-theme="dark"] .auth-btn-google {
+  background: var(--methylene);
+  border-color: var(--methylene);
+  color: #08131C;
+}
+:root[data-theme="dark"] .auth-btn-google:hover {
+  background: var(--methylene-dk); border-color: var(--methylene-dk);
+}
+:root[data-theme="dark"] .auth-btn-primary {
+  background: var(--methylene);
+  border-color: var(--methylene);
+  color: #08131C;
+}
+:root[data-theme="dark"] .auth-btn-primary:hover {
+  background: var(--methylene-dk); border-color: var(--methylene-dk);
+}
+:root[data-theme="dark"] .auth-alert {
+  background: #2C1714;
+  border-color: rgba(233,117,103,.3);
+  color: #F0A79B;
+}

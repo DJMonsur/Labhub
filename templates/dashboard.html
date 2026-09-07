@@ -1,0 +1,1141 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab Dashboard — PSHS-CARC</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'dashboard.css' %}?v=12">
+  <script>
+    // Set theme before first paint so the page doesn't flash the wrong scheme.
+    (function () {
+      var saved;
+      try { saved = localStorage.getItem('labhub-theme'); } catch (e) {}
+      var dark = saved
+        ? saved === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
+  <style>
+    /* Diagnostics Tab Styles */
+    .diagnostics-container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 24px;
+      overflow-y: auto;
+      max-height: calc(100vh - 120px);
+    }
+    @media (max-width: 768px) {
+      .diagnostics-container {
+        grid-template-columns: 1fr;
+      }
+    }
+    .diag-card {
+      background: var(--card-bg);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+    .diag-card.full-width {
+      grid-column: 1 / -1;
+    }
+    .diag-card h3 {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--dark);
+      border-bottom: 1.5px solid var(--border);
+      padding-bottom: 8px;
+    }
+    .diag-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .diag-item {
+      font-size: 13px;
+      color: var(--mid);
+    }
+    .diag-item strong {
+      color: var(--dark);
+    }
+    .code-box {
+      background: #232d3b;
+      color: #9cdcfe;
+      padding: 14px;
+      border-radius: var(--radius);
+      font-family: monospace;
+      font-size: 12px;
+      overflow-x: auto;
+      max-height: 250px;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    .diag-status-healthy {
+      color: var(--success);
+      font-weight: 700;
+    }
+    .diag-status-error {
+      color: var(--danger);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <g id="i-list"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3.5 6h.01"/><path d="M3.5 12h.01"/><path d="M3.5 18h.01"/></g>
+    <g id="i-box"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></g>
+    <g id="i-calendar"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18"/><path d="M8 3v4"/><path d="M16 3v4"/></g>
+    <g id="i-tool"><path d="M14.5 6a3.5 3.5 0 0 0 4.6 4.6L21 20l-2 2-9.4-1.9A3.5 3.5 0 0 0 5 15.5L3 6l3-3z"/></g>
+    <g id="i-logout"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></g>
+    <g id="i-back"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></g>
+    <g id="i-pen"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></g>
+    <g id="i-clock"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></g>
+    <g id="i-sun"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4"/><path d="M12 19.6V22"/><path d="M4.2 4.2l1.7 1.7"/><path d="M18.1 18.1l1.7 1.7"/><path d="M2 12h2.4"/><path d="M19.6 12H22"/><path d="M4.2 19.8l1.7-1.7"/><path d="M18.1 5.9l1.7-1.7"/></g>
+    <g id="i-moon"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></g>
+    <g id="i-note"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></g>
+  </defs>
+</svg>
+
+<!-- ── TOP BAR ─────────────────────────────────────────────────────────────── -->
+<header class="dash-header">
+  <a href="/" class="back-link"><svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg> Main page</a>
+  <div class="dash-title">Lab Dashboard <span class="pending-pill" id="pending-count-pill">0</span></div>
+  <div class="dash-actions">
+    <button type="button" class="back-link theme-btn" onclick="toggleTheme()" title="Switch theme" aria-label="Switch theme">
+      <svg class="ico i-sun" viewBox="0 0 24 24"><use href="#i-sun"/></svg>
+      <svg class="ico i-moon" viewBox="0 0 24 24"><use href="#i-moon"/></svg>
+    </button>
+    <a href="/accounts/logout/" class="back-link dash-logout"><svg class="ico" viewBox="0 0 24 24"><use href="#i-logout"/></svg> Sign out</a>
+  </div>
+</header>
+<!-- ── TAB BAR ─────────────────────────────────────────────────────────────── -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="requests"  onclick="switchTab('requests')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-list"/></svg> Requests</button>
+  <button class="tab-btn"        data-tab="inventory" onclick="switchTab('inventory')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Inventory</button>
+  <button class="tab-btn"        data-tab="schedule"  onclick="switchTab('schedule')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-calendar"/></svg> Schedule</button>
+  <button class="tab-btn"        data-tab="diagnostics" onclick="switchTab('diagnostics')" id="tab-btn-diagnostics" style="display:none;"><svg class="ico" viewBox="0 0 24 24"><use href="#i-tool"/></svg> Diagnostics</button>
+</nav>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: REQUESTS                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel active" id="tab-requests">
+  <div class="panel-toolbar">
+    <select id="req-filter" onchange="renderRequests()">
+      <option value="">All Requests</option>
+      <option value="pending"  selected>Pending</option>
+      <option value="approved">Approved</option>
+      <option value="returned">Returned</option>
+      <option value="rejected">Rejected</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <div class="toolbar-spacer"></div>
+    <button class="btn btn-primary" onclick="openManualModal()">+ Manual Entry</button>
+  </div>
+  <div class="requests-list" id="requests-list">
+    <div class="empty-state"><div class="empty-icon"></div>Loading…</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: INVENTORY                                                            -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-inventory">
+  <div class="panel-toolbar">
+    <input type="text" id="inv-search"      placeholder="Search items…" oninput="filterInventory()">
+    <select          id="inv-type-filter"  onchange="filterInventory()">
+      <option value="">All Types</option>
+    </select>
+    <label class="toggle-label">
+      <input type="checkbox" id="show-hidden" onchange="filterInventory()"> Show hidden
+    </label>
+    <div class="toolbar-spacer"></div>
+    <button class="btn btn-primary" onclick="openItemModal(null)">+ Add Item</button>
+  </div>
+  <div class="table-wrap">
+    <table class="inv-table">
+      <thead>
+        <tr>
+          <th class="col-name">Name</th>
+          <th class="col-type">Type</th>
+          <th class="col-count">Total</th>
+          <th class="col-avail">Available</th>
+          <th class="col-unit">Unit</th>
+          <th class="col-flags">Flags</th>
+          <th class="col-actions">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="inv-tbody">
+        <tr class="loading-row"><td colspan="7">Loading inventory…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: SCHEDULE                                                             -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-schedule">
+  <div class="panel-toolbar schedule-toolbar">
+    <button class="btn-icon" onclick="changeMonth(-1)" title="Previous month">◀</button>
+    <span class="month-label" id="month-label">—</span>
+    <button class="btn-icon" onclick="changeMonth(1)"  title="Next month">▶</button>
+    <div class="toolbar-spacer"></div>
+    <button class="btn btn-primary" onclick="openManualModal()">+ Add Entry</button>
+  </div>
+  <div class="gantt-wrap">
+    <div class="gantt-scroll" id="gantt-container">
+      <div class="gantt-empty">Loading schedule…</div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: DIAGNOSTICS                                                          -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-diagnostics">
+  <div class="diagnostics-container">
+    <div class="diag-card">
+      <h3>System Status</h3>
+      <div class="diag-grid">
+        <div class="diag-item"><strong>Database Connection:</strong> <span id="diag-db-status">Checking...</span></div>
+        <div class="diag-item"><strong>Django Version:</strong> <span id="diag-django-ver">Checking...</span></div>
+        <div class="diag-item"><strong>Debug Mode:</strong> <span id="diag-django-debug">Checking...</span></div>
+        <div class="diag-item"><strong>Database Engine:</strong> <span id="diag-db-engine">Checking...</span></div>
+      </div>
+    </div>
+    <div class="diag-card">
+      <h3>Django Settings</h3>
+      <pre id="diag-django-settings" class="code-box">Loading...</pre>
+    </div>
+    <div class="diag-card full-width">
+      <h3>Environment Variables</h3>
+      <pre id="diag-env-vars" class="code-box">Loading...</pre>
+    </div>
+    <div class="diag-card full-width">
+      <h3>System Inventory Logs</h3>
+      <div class="table-wrap">
+        <table class="inv-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>User</th>
+              <th>Action</th>
+              <th>Item</th>
+              <th>Timestamp</th>
+            </tr>
+          </thead>
+          <tbody id="diag-logs-tbody">
+            <tr><td colspan="5">Loading system logs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: ADD / EDIT ITEM                                                    -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="item-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="item-modal-title">Add Item</h2>
+      <button class="modal-close" onclick="closeItemModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Name <span class="req">*</span></label>
+        <input id="im-name" type="text" placeholder="e.g. Beaker, 500 mL">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Type <span class="req">*</span></label>
+          <select id="im-type"></select>
+        </div>
+        <div class="field">
+          <label>Location <span class="req">*</span></label>
+          <select id="im-location"></select>
+        </div>
+      </div>
+      <div class="field-row-3">
+        <div class="field">
+          <label>Total Count</label>
+          <input id="im-count" type="number" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Available</label>
+          <input id="im-available" type="number" min="0" value="0">
+        </div>
+        <div class="field">
+          <label>Unit</label>
+          <input id="im-unit" type="text" value="pcs" placeholder="pcs">
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="im-desc" rows="2" placeholder="Optional notes about this item"></textarea>
+      </div>
+      <div class="checkbox-row">
+        <label class="checkbox-label">
+          <input type="checkbox" id="im-borrowable" checked>
+          Borrowable
+        </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="im-visible" checked>
+          Visible to students &amp; teachers
+        </label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeItemModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveItem()">Save Item</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: MANUAL BORROW ENTRY                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="manual-modal">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <h2>Manual Borrow Entry</h2>
+      <button class="modal-close" onclick="closeManualModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Borrower Name <span class="req">*</span></label>
+          <input id="mm-borrower" type="text" placeholder="Full name">
+        </div>
+        <div class="field">
+          <label>Section</label>
+          <input id="mm-section" type="text" placeholder="e.g. 11-A">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Teacher-in-Charge</label>
+          <input id="mm-teacher" type="text" placeholder="Teacher's name">
+        </div>
+
+      </div>
+      <div class="field">
+        <label>Purpose <span class="req">*</span></label>
+        <input id="mm-purpose" type="text" placeholder="Experiment or reason">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Date &amp; Time Needed <span class="req">*</span></label>
+          <input id="mm-date-needed" type="datetime-local">
+        </div>
+        <div class="field">
+          <label>Expected Return Date <span class="req">*</span></label>
+          <input id="mm-return-date" type="date">
+        </div>
+      </div>
+      <div class="field">
+        <label>Additional Notes</label>
+        <textarea id="mm-notes" rows="2" placeholder="Optional"></textarea>
+      </div>
+      <hr class="section-divider">
+      <div class="manual-items-section">
+        <div class="manual-items-header">
+          <span>Items to Borrow</span>
+          <button class="btn btn-sm btn-secondary" onclick="addManualItemRow()">+ Add Item</button>
+        </div>
+        <div id="mm-items-list"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeManualModal()">Cancel</button>
+      <button class="btn btn-success"   onclick="saveManualEntry()">Save as Approved</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ── TOAST ────────────────────────────────────────────────────────────────── -->
+<div id="toast" class="toast hidden"></div>
+
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- JAVASCRIPT                                                                -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<script>
+/* ─── STATE ──────────────────────────────────────────────────────────────── */
+let allItems     = [];   // from GET /api/dashboard/items/
+let allRequests  = [];   // from GET /api/dashboard/requests/
+let itemTypes    = [];   // from GET /api/dashboard/item-types/
+let locations    = [];   // from GET /api/dashboard/locations/
+let scheduleData = null; // from GET /api/dashboard/schedule/
+let currentTab   = 'requests';
+let schedYear, schedMonth;
+let editingItemId    = null;  // null = new item, int = editing existing
+let manualItemRows   = [];    // [{item_id, qty}, …] for manual-modal
+
+/* ─── INIT ───────────────────────────────────────────────────────────────── */
+async function init() {
+  const today = new Date();
+  schedYear  = today.getFullYear();
+  schedMonth = today.getMonth() + 1;
+  renderMonthLabel();
+
+  await Promise.all([loadItems(), loadRequests(), loadRefData()]);
+  loadSchedule(); // pre-load in background so Schedule tab is ready immediately
+}
+
+/* ─── TAB SWITCHING ──────────────────────────────────────────────────────── */
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll('.tab-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === name)
+  );
+  document.querySelectorAll('.tab-panel').forEach(p =>
+    p.classList.toggle('active', p.id === 'tab-' + name)
+  );
+  if (name === 'schedule') loadSchedule();
+  if (name === 'diagnostics') loadDiagnostics();
+}
+
+/* ─── DATA LOADERS ───────────────────────────────────────────────────────── */
+async function loadItems() {
+  try {
+    const res = await fetch('/api/dashboard/items/');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    allItems = data;
+    renderInventory();
+    populateTypeFilter();
+  } catch (e) { toast('Failed to load inventory.', 'error'); }
+}
+
+async function loadRequests() {
+  try {
+    const res = await fetch('/api/dashboard/requests/');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    allRequests = data;
+    renderRequests();
+    updatePendingBadge();
+  } catch (e) { toast('Failed to load requests.', 'error'); }
+}
+
+async function loadRefData() {
+  try {
+    const [tr, lr] = await Promise.all([
+      fetch('/api/dashboard/item-types/'),
+      fetch('/api/dashboard/locations/'),
+    ]);
+    const [types, locationData] = await Promise.all([tr.json(), lr.json()]);
+    if (!tr.ok) throw new Error(types.error || `HTTP ${tr.status}`);
+    if (!lr.ok) throw new Error(locationData.error || `HTTP ${lr.status}`);
+    itemTypes = types;
+    locations = locationData;
+    populateItemModalDropdowns();
+  } catch (e) { toast('Failed to load reference data.', 'error'); }
+}
+
+async function loadSchedule() {
+  const container = document.getElementById('gantt-container');
+  container.innerHTML = '<div class="gantt-empty">Loading schedule…</div>';
+  try {
+    const res  = await fetch(
+      `/api/dashboard/schedule/?year=${schedYear}&month=${schedMonth}`
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      container.innerHTML =
+        `<div class="gantt-empty">${escHtml(data.error || 'Could not load the schedule.')}</div>`;
+      return;
+    }
+    scheduleData = data;
+    renderTimeline(scheduleData);
+  } catch (e) {
+    container.innerHTML = '<div class="gantt-empty">Could not reach the server. Check that it is still running.</div>';
+  }
+}
+
+async function refreshAll() {
+  await Promise.all([loadItems(), loadRequests()]);
+  if (currentTab === 'schedule') await loadSchedule();
+}
+
+/* ─── REQUESTS TAB ───────────────────────────────────────────────────────── */
+function renderRequests() {
+  const filter = document.getElementById('req-filter').value;
+  const list   = document.getElementById('requests-list');
+  const shown  = filter ? allRequests.filter(r => r.status === filter) : allRequests;
+
+  if (!shown.length) {
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><use href="#i-list"/></svg></div>No requests match this filter.</div>`;
+    return;
+  }
+  list.innerHTML = shown.map(buildRequestCard).join('');
+}
+
+function buildRequestCard(req) {
+  const badge  = statusBadge(req.status);
+  const date   = fmtDate(req.submitted_at);
+  const dn     = req.date_needed ? fmtDateTime(req.date_needed) : '—';
+  const ret    = req.return_date ? fmtDate(req.return_date) : '—';
+  const notes  = req.notes ? `<div class="card-notes">"${escHtml(req.notes)}"</div>` : '';
+
+  const itemRows = req.items.map(it => {
+    const avCls = it.available === 0 ? 'avail-bad'
+                : it.available < it.quantity ? 'avail-warn' : 'avail-ok';
+    return `<div class="card-item-row">
+      <span>${escHtml(it.item_name)}</span>
+      <span class="card-item-qty">×${it.quantity}</span>
+      <span class="${avCls}">${it.available} avail.</span>
+    </div>`;
+  }).join('');
+
+  const actions    = buildCardActions(req);
+  const signedChk  = `<label class="signed-label" title="Manual paper signature — independent of system status">
+    <input type="checkbox" class="signed-cb" ${req.is_signed ? 'checked' : ''}
+      onchange="toggleSigned(${req.id}, this.checked)">
+    <svg class="ico" viewBox="0 0 24 24"><use href="#i-pen"/></svg> Signed
+  </label>`;
+
+  return `<div class="request-card status-${req.status}" id="card-${req.id}">
+    <div class="card-header">
+      <span class="card-ref">${escHtml(req.ref)}</span>
+      ${badge}
+      <span class="card-date">${date}</span>
+    </div>
+    <div class="card-meta">
+      <span><strong>${escHtml(req.borrower_name)}</strong></span>
+      ${req.section ? `<span>Section ${escHtml(req.section)}</span>` : ''}
+      ${req.teacher_name ? `<span>Teacher: ${escHtml(req.teacher_name)}</span>` : ''}
+      <span>${escHtml(req.role)}</span>
+    </div>
+    <div class="card-purpose"><svg class="ico" viewBox="0 0 24 24"><use href="#i-note"/></svg> ${escHtml(req.purpose)}</div>
+    <div class="card-dates"><svg class="ico" viewBox="0 0 24 24"><use href="#i-clock"/></svg> ${dn} &rarr; return by ${ret}</div>
+    ${notes}
+    <div class="card-items">
+      <div class="card-items-header">
+        <span>Item</span><span>Qty</span><span>Available</span>
+      </div>
+      ${itemRows}
+    </div>
+    <div class="card-actions">${signedChk}${actions}</div>
+  </div>`;
+}
+
+function buildCardActions(req) {
+  if (req.status === 'pending') {
+    return `
+      <button class="btn btn-danger btn-sm"
+        onclick="patchRequest(${req.id},{status:'rejected'})">Reject</button>
+      <button class="btn btn-success btn-sm"
+        onclick="patchRequest(${req.id},{status:'approved'})">Approve</button>`;
+  }
+  if (req.status === 'approved') {
+    return `
+      <button class="btn btn-warn btn-sm"
+        onclick="patchRequest(${req.id},{status:'cancelled'})">Cancel</button>
+      <button class="btn btn-success btn-sm"
+        onclick="patchRequest(${req.id},{status:'returned'})"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Mark returned</button>`;
+  }
+  return '';
+}
+
+function statusBadge(status) {
+  return `<span class="badge badge-${status}">${status}</span>`;
+}
+
+function updatePendingBadge() {
+  const n    = allRequests.filter(r => r.status === 'pending').length;
+  const pill = document.getElementById('pending-count-pill');
+  if (!pill) return;
+  pill.textContent = n;
+  pill.classList.toggle('visible', n > 0);
+}
+
+async function patchRequest(id, data) {
+  try {
+    const res = await fetch(`/api/dashboard/requests/${id}/`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(data),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Action failed.', 'error'); return; }
+    toast('Request updated.', 'success');
+    await refreshAll();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+/* The "Signed" checkbox records that a paper form was physically signed. It is
+   deliberately independent of the request's approval status.
+   Patched directly rather than via patchRequest() so a full refresh doesn't
+   re-render the card out from under the checkbox the user just clicked. */
+async function toggleSigned(id, checked) {
+  const box = document.querySelector(`#card-${id} .signed-cb`);
+  if (box) box.disabled = true;
+  try {
+    const res = await fetch(`/api/dashboard/requests/${id}/`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ is_signed: checked }),
+    });
+    const json = await res.json();
+    if (!res.ok) {
+      toast(json.error || 'Could not update signature.', 'error');
+      if (box) box.checked = !checked;   // roll the checkbox back
+      return;
+    }
+    // Keep the in-memory copy in sync so a later re-render shows the right state
+    const req = allRequests.find(r => r.id === id);
+    if (req) req.is_signed = checked;
+    toast(checked ? 'Marked as signed.' : 'Signature cleared.', 'success');
+  } catch (e) {
+    toast('Network error.', 'error');
+    if (box) box.checked = !checked;
+  } finally {
+    if (box) box.disabled = false;
+  }
+}
+
+/* ─── INVENTORY TAB ──────────────────────────────────────────────────────── */
+function renderInventory() {
+  filterInventory();
+}
+
+function filterInventory() {
+  const q          = document.getElementById('inv-search').value.toLowerCase().trim();
+  const typeFilter = document.getElementById('inv-type-filter').value;
+  const showHidden = document.getElementById('show-hidden').checked;
+  const tbody      = document.getElementById('inv-tbody');
+
+  let rows = allItems;
+  if (!showHidden) rows = rows.filter(i => i.is_visible);
+  if (typeFilter)  rows = rows.filter(i => i.type_label === typeFilter);
+  if (q)           rows = rows.filter(i => i.name.toLowerCase().includes(q));
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="7" style="padding:32px;text-align:center;color:var(--muted)">
+      No items match your filters.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(item => {
+    const availCls = item.available_count === 0 ? 'zero'
+                   : item.available_count < item.item_count * 0.25 ? 'low' : '';
+    const hiddenCls = item.is_visible ? '' : ' hidden-row';
+
+    return `<tr class="${hiddenCls}">
+      <td class="col-name">
+        <div class="item-name-text">${escHtml(item.name)}</div>
+        ${item.description ? `<div class="item-desc-text">${escHtml(item.description)}</div>` : ''}
+      </td>
+      <td class="col-type">${escHtml(item.type_label)}</td>
+      <td class="col-count">${item.item_count}</td>
+      <td class="col-avail">
+        <span class="avail-number ${availCls}">${item.available_count}</span>
+      </td>
+      <td class="col-unit">${escHtml(item.unit)}</td>
+      <td class="col-flags">
+        <span class="flag-pill ${item.is_borrowable ? 'on' : 'off'}">
+          ${item.is_borrowable ? 'Borrowable' : 'No Borrow'}
+        </span>
+        <span class="flag-pill ${item.is_visible ? 'on' : 'off'}">
+          ${item.is_visible ? 'Visible' : 'Hidden'}
+        </span>
+      </td>
+      <td class="col-actions">
+        <button class="btn btn-secondary btn-sm" onclick="openItemModal(${item.id})">Edit</button>
+        <button class="btn btn-danger btn-sm"    onclick="deleteItem(${item.id}, '${escAttr(item.name)}')">Delete</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function populateTypeFilter() {
+  const sel    = document.getElementById('inv-type-filter');
+  const labels = [...new Set(allItems.map(i => i.type_label))].sort();
+  const cur    = sel.value;
+  sel.innerHTML = '<option value="">All Types</option>' +
+    labels.map(l => `<option value="${escAttr(l)}">${escHtml(l)}</option>`).join('');
+  sel.value = cur;
+}
+
+/* ─── ITEM MODAL ─────────────────────────────────────────────────────────── */
+function populateItemModalDropdowns() {
+  // Type dropdown — grouped by category
+  const typeSel = document.getElementById('im-type');
+  const cats    = [...new Set(itemTypes.map(t => t.category))].sort();
+  typeSel.innerHTML = cats.map(cat => {
+    const opts = itemTypes
+      .filter(t => t.category === cat)
+      .map(t => `<option value="${t.type_id}">${escHtml(t.type_label)}</option>`)
+      .join('');
+    return `<optgroup label="${escAttr(cat)}">${opts}</optgroup>`;
+  }).join('');
+
+  // Location dropdown
+  const locSel = document.getElementById('im-location');
+  locSel.innerHTML = locations
+    .map(l => `<option value="${l.location_id}">${escHtml(l.location_name)}</option>`)
+    .join('');
+}
+
+function openItemModal(itemId) {
+  editingItemId = itemId;
+  const title   = document.getElementById('item-modal-title');
+
+  if (itemId === null) {
+    // ── New item: clear fields ──
+    title.textContent = 'Add Item';
+    document.getElementById('im-name').value      = '';
+    document.getElementById('im-count').value     = '0';
+    document.getElementById('im-available').value = '0';
+    document.getElementById('im-unit').value      = 'pcs';
+    document.getElementById('im-desc').value      = '';
+    document.getElementById('im-borrowable').checked = true;
+    document.getElementById('im-visible').checked    = true;
+    // Reset type/location to first option
+    document.getElementById('im-type').selectedIndex     = 0;
+    document.getElementById('im-location').selectedIndex = 0;
+  } else {
+    // ── Editing: pre-fill ──
+    const item = allItems.find(i => i.id === itemId);
+    if (!item) return;
+    title.textContent = 'Edit Item';
+    document.getElementById('im-name').value      = item.name;
+    document.getElementById('im-count').value     = item.item_count;
+    document.getElementById('im-available').value = item.available_count;
+    document.getElementById('im-unit').value      = item.unit;
+    document.getElementById('im-desc').value      = item.description;
+    document.getElementById('im-borrowable').checked = item.is_borrowable;
+    document.getElementById('im-visible').checked    = item.is_visible;
+    document.getElementById('im-type').value          = item.type_id;
+    document.getElementById('im-location').value      = item.location_id;
+  }
+
+  document.getElementById('item-modal').classList.remove('hidden');
+  document.getElementById('im-name').focus();
+}
+
+function closeItemModal() {
+  editingItemId = null;
+  document.getElementById('item-modal').classList.add('hidden');
+}
+
+async function saveItem() {
+  const name = document.getElementById('im-name').value.trim();
+  if (!name) { toast('Item name is required.', 'warn'); return; }
+
+  const payload = {
+    name:            name,
+    type_id:         parseInt(document.getElementById('im-type').value),
+    location_id:     parseInt(document.getElementById('im-location').value),
+    item_count:      parseInt(document.getElementById('im-count').value) || 0,
+    available_count: parseInt(document.getElementById('im-available').value) || 0,
+    unit:            document.getElementById('im-unit').value.trim() || 'pcs',
+    description:     document.getElementById('im-desc').value.trim(),
+    is_borrowable:   document.getElementById('im-borrowable').checked,
+    is_visible:      document.getElementById('im-visible').checked,
+  };
+
+  try {
+    let res;
+    if (editingItemId === null) {
+      res = await fetch('/api/dashboard/items/', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await fetch(`/api/dashboard/items/${editingItemId}/`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload),
+      });
+    }
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Save failed.', 'error'); return; }
+
+    toast(editingItemId === null ? 'Item created.' : 'Item updated.', 'success');
+    closeItemModal();
+    await loadItems();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+async function deleteItem(id, name) {
+  if (!confirm(`Delete "${name}"?\n\nThis is permanent. Items with borrow history cannot be deleted — hide them instead.`)) return;
+  try {
+    const res  = await fetch(`/api/dashboard/items/${id}/`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Delete failed.', 'error'); return; }
+    toast('Item deleted.', 'success');
+    await loadItems();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+/* ─── SCHEDULE / GANTT ───────────────────────────────────────────────────── */
+function changeMonth(delta) {
+  schedMonth += delta;
+  if (schedMonth > 12) { schedMonth = 1;  schedYear++; }
+  if (schedMonth < 1)  { schedMonth = 12; schedYear--; }
+  renderMonthLabel();
+  loadSchedule();
+}
+
+function renderMonthLabel() {
+  const months = ['January','February','March','April','May','June',
+                  'July','August','September','October','November','December'];
+  document.getElementById('month-label').textContent =
+    months[schedMonth - 1] + ' ' + schedYear;
+}
+
+function renderTimeline(data) {
+  const container = document.getElementById('gantt-container');
+  if (!data || !data.entries || !data.entries.length) {
+    container.innerHTML = `<div class="gantt-empty">
+      <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><use href="#i-calendar"/></svg></div>
+      No borrow records for this period.</div>`;
+    return;
+  }
+
+  const first     = new Date(data.first_day + 'T00:00:00');
+  const last      = new Date(data.last_day  + 'T00:00:00');
+  const totalDays = Math.round((last - first) / 86400000) + 1;
+  const today     = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Group entries by item
+  const itemMap = new Map();
+  for (const e of data.entries) {
+    if (!itemMap.has(e.item_id)) {
+      itemMap.set(e.item_id, { name: e.item_name, borrows: [] });
+    }
+    itemMap.get(e.item_id).borrows.push(e);
+  }
+
+  // Build day-header cells
+  const dayCells = [];
+  for (let d = 0; d < totalDays; d++) {
+    const dt = new Date(first.getTime() + d * 86400000);
+    const isToday = dt.getTime() === today.getTime();
+    dayCells.push(
+      `<div class="gantt-day-cell ${isToday ? 'today-header' : ''}">${dt.getDate()}</div>`
+    );
+  }
+
+  // Build today overlay position
+  const todayPct = (today >= first && today <= last)
+    ? ((today - first) / ((last - first) + 86400000)) * 100
+    : -1;
+
+  // Build grid lines
+  const gridLines = dayCells.map((_, i) => {
+    const dt = new Date(first.getTime() + i * 86400000);
+    const isToday = dt.getTime() === today.getTime();
+    return `<div class="gantt-grid-line ${isToday ? 'today-line' : ''}"></div>`;
+  }).join('');
+
+  // Build rows
+  const rowsHtml = [...itemMap.entries()].map(([itemId, info]) => {
+    const bars = info.borrows.map(b => {
+      const bStart  = new Date(b.date_needed  + 'T00:00:00');
+      const bEnd    = new Date(b.return_date  + 'T00:00:00');
+      const cStart  = new Date(Math.max(bStart, first));
+      const cEnd    = new Date(Math.min(bEnd,   last));
+      const leftPct = ((cStart - first) / ((last - first) + 86400000)) * 100;
+      const wPct    = ((cEnd - cStart)  / ((last - first) + 86400000)) * 100 +
+                      (1 / totalDays * 100);   // +1 day so single-day has width
+      const label   = `${b.ref} ×${b.quantity}`;
+      return `<div class="gantt-bar status-${b.status}"
+          style="left:${leftPct.toFixed(2)}%;width:${Math.max(wPct,1.5).toFixed(2)}%"
+          title="${escAttr(b.ref + ' — ' + b.borrower_name + ' ×' + b.quantity)}">${escHtml(label)}</div>`;
+    }).join('');
+
+    const todayLine = todayPct >= 0
+      ? `<div class="today-overlay" style="left:${todayPct.toFixed(2)}%"></div>` : '';
+
+    return `<div class="gantt-row">
+      <div class="gantt-label">
+        ${escHtml(info.name)}
+      </div>
+      <div class="gantt-track">
+        <div class="gantt-grid-lines">${gridLines}</div>
+        ${todayLine}
+        ${bars}
+      </div>
+    </div>`;
+  }).join('');
+
+  container.innerHTML = `
+    <div class="gantt-row header-row">
+      <div class="gantt-label">Item</div>
+      <div class="gantt-track">
+        <div class="gantt-day-headers">${dayCells.join('')}</div>
+      </div>
+    </div>
+    ${rowsHtml}`;
+}
+
+/* ─── MANUAL ENTRY MODAL ─────────────────────────────────────────────────── */
+function openManualModal() {
+  manualItemRows = [{ item_id: '', qty: 1 }];
+
+  // Clear all fields
+  ['mm-borrower','mm-section','mm-teacher','mm-purpose','mm-notes']
+    .forEach(id => { document.getElementById(id).value = ''; });
+  document.getElementById('mm-date-needed').value = '';
+  document.getElementById('mm-return-date').value  = '';
+
+  renderManualItemRows();
+  document.getElementById('manual-modal').classList.remove('hidden');
+  document.getElementById('mm-borrower').focus();
+}
+
+function closeManualModal() {
+  manualItemRows = [];
+  document.getElementById('manual-modal').classList.add('hidden');
+}
+
+function addManualItemRow() {
+  manualItemRows.push({ item_id: '', qty: 1 });
+  renderManualItemRows();
+}
+
+function removeManualItemRow(idx) {
+  manualItemRows.splice(idx, 1);
+  if (!manualItemRows.length) manualItemRows = [{ item_id: '', qty: 1 }];
+  renderManualItemRows();
+}
+
+function renderManualItemRows() {
+  const container = document.getElementById('mm-items-list');
+
+  // Build item <select> options once
+  const optionsHtml = '<option value="">— Select item —</option>' +
+    allItems
+      .filter(i => i.is_visible)
+      .map(i => `<option value="${i.id}">${escHtml(i.name)} (${i.available_count} avail.)</option>`)
+      .join('');
+
+  container.innerHTML = manualItemRows.map((row, idx) => {
+    return `<div class="manual-item-row">
+      <select onchange="manualItemRows[${idx}].item_id=parseInt(this.value)||'';
+                        updateManualAvail(${idx},this.value)">
+        ${optionsHtml.replace(
+          `value="${row.item_id}"`,
+          `value="${row.item_id}" selected`
+        )}
+      </select>
+      <input type="number" min="1" value="${row.qty}"
+        oninput="manualItemRows[${idx}].qty=parseInt(this.value)||1">
+      <span class="avail-hint" id="mm-avail-${idx}">—</span>
+      <button class="remove-row-btn" onclick="removeManualItemRow(${idx})">×</button>
+    </div>`;
+  }).join('');
+
+  // Restore avail hints for already-selected items
+  manualItemRows.forEach((row, idx) => {
+    if (row.item_id) updateManualAvail(idx, row.item_id);
+  });
+}
+
+function updateManualAvail(idx, itemId) {
+  const hint = document.getElementById(`mm-avail-${idx}`);
+  if (!hint) return;
+  const item = allItems.find(i => i.id === parseInt(itemId));
+  hint.textContent = item ? item.available_count + ' avail.' : '—';
+  hint.style.color = item && item.available_count === 0 ? 'var(--danger)' : 'var(--muted)';
+}
+
+async function saveManualEntry() {
+  const borrower = document.getElementById('mm-borrower').value.trim();
+  const purpose  = document.getElementById('mm-purpose').value.trim();
+  const dn       = document.getElementById('mm-date-needed').value;
+  const ret      = document.getElementById('mm-return-date').value;
+
+  if (!borrower) { toast('Borrower name is required.', 'warn'); return; }
+  if (!purpose)  { toast('Purpose is required.', 'warn'); return; }
+  if (!dn)       { toast('Date needed is required.', 'warn'); return; }
+  if (!ret)      { toast('Return date is required.', 'warn'); return; }
+
+  const items = manualItemRows.filter(r => r.item_id)
+    .map(r => ({ item_id: r.item_id, quantity: r.qty }));
+
+  if (!items.length) { toast('Add at least one item.', 'warn'); return; }
+
+  const payload = {
+    borrower_name: borrower,
+    section:       document.getElementById('mm-section').value.trim(),
+    teacher_name:  document.getElementById('mm-teacher').value.trim(),
+    role:          'Lab Personnel',
+    purpose,
+    date_needed:   dn,
+    return_date:   ret,
+    notes:         document.getElementById('mm-notes').value.trim(),
+    items,
+  };
+
+  try {
+    const res  = await fetch('/api/dashboard/requests/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Save failed.', 'error'); return; }
+
+    toast(`Entry saved (${json.ref}).`, 'success');
+    closeManualModal();
+    await refreshAll();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+/* ─── UTILITY ────────────────────────────────────────────────────────────── */
+function fmtDate(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return d.toLocaleDateString('en-PH', { year:'numeric', month:'short', day:'numeric' });
+}
+
+function fmtDateTime(isoStr) {
+  if (!isoStr) return '—';
+  const d = new Date(isoStr);
+  return d.toLocaleString('en-PH', {
+    year:'numeric', month:'short', day:'numeric',
+    hour:'2-digit', minute:'2-digit',
+  });
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+
+function escAttr(str) { return escHtml(str); }
+
+let _toastTimer = null;
+function toast(msg, type = 'success') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className   = `toast ${type}`;
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.add('hidden'), 3200);
+}
+
+/* ─── KEYBOARD SHORTCUTS ─────────────────────────────────────────────────── */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    closeItemModal();
+    closeManualModal();
+  }
+});
+
+/* ─── DIAGNOSTICS TAB ────────────────────────────────────────────────────── */
+async function loadDiagnostics() {
+  const dbStatusEl = document.getElementById('diag-db-status');
+  const djangoVerEl = document.getElementById('diag-django-ver');
+  const debugEl = document.getElementById('diag-django-debug');
+  const engineEl = document.getElementById('diag-db-engine');
+  const envVarsEl = document.getElementById('diag-env-vars');
+  const settingsEl = document.getElementById('diag-django-settings');
+  const logsTbody = document.getElementById('diag-logs-tbody');
+
+  try {
+    const res = await fetch('/api/dashboard/diagnostics/');
+    if (!res.ok) {
+      if (res.status === 403) {
+        toast('Access Denied. IT Personnel only.', 'error');
+        switchTab('requests');
+        return;
+      }
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const data = await res.json();
+
+    dbStatusEl.textContent = data.db_status;
+    dbStatusEl.className = data.db_status === 'Healthy' ? 'diag-status-healthy' : 'diag-status-error';
+    djangoVerEl.textContent = data.django_version;
+    debugEl.textContent = data.django_debug ? 'On' : 'Off';
+    engineEl.textContent = data.db_engine.split('.').pop();
+
+    envVarsEl.textContent = JSON.stringify(data.env_vars, null, 2);
+    settingsEl.textContent = JSON.stringify(data.settings, null, 2);
+
+    if (data.logs && data.logs.length) {
+      if (data.logs[0].error) {
+        logsTbody.innerHTML = `<tr><td colspan="5" style="color:var(--danger);">${data.logs[0].error}</td></tr>`;
+      } else {
+        logsTbody.innerHTML = data.logs.map(log => `
+          <tr>
+            <td>${log.log_id}</td>
+            <td><strong>${escHtml(log.user_name)}</strong> <span style="font-size:11px;color:var(--muted)">(${escHtml(log.user_role)})</span></td>
+            <td><span class="flag-pill on">${escHtml(log.action_type)}</span></td>
+            <td>${escHtml(log.item_name)}</td>
+            <td style="font-size:12px;color:var(--muted)">${fmtDateTime(log.timestamp)}</td>
+          </tr>
+        `).join('');
+      }
+    } else {
+      logsTbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted)">No system logs found.</td></tr>';
+    }
+  } catch (e) {
+    toast('Failed to load diagnostics.', 'error');
+  }
+}
+
+// ─── COOKIE HELPERS ────────────────────────────────────────────────────────
+function getCookie(name) {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+  return null;
+}
+
+function setCookie(name, value, days = 7) {
+  const date = new Date();
+  date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+  document.cookie = `${name}=${value};path=/;expires=${date.toUTCString()}`;
+}
+
+function toggleTheme() {
+  var root = document.documentElement;
+  var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+  root.classList.add('theming');
+  root.dataset.theme = next;
+  try { localStorage.setItem('labhub-theme', next); } catch (e) {}
+  setTimeout(function () { root.classList.remove('theming'); }, 260);
+}
+
+window.matchMedia('(prefers-color-scheme: dark)')
+  .addEventListener('change', function (e) {
+    var saved = null;
+    try { saved = localStorage.getItem('labhub-theme'); } catch (err) {}
+    if (!saved) document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+  });
+
+// ─── ROLE MANAGEMENT ───────────────────────────────────────────────────────
+// const CURRENT_ROLE = '{{ current_role }}';
+
+/* ─── BOOTSTRAP ──────────────────────────────────────────────────────────── */
+init();
+</script>
+
+</body>
+</html>

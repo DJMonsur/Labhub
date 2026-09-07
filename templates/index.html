@@ -1,0 +1,1493 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lab Hub — PSHS-CARC Biology Laboratory</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#0F2231">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=11">
+  <script>
+    // Set the theme before first paint — a flash of the wrong theme on every
+    // page load is the classic dark-mode bug, and it's caused by doing this
+    // in a deferred script instead of inline in <head>.
+    (function () {
+      var saved;
+      try { saved = localStorage.getItem('labhub-theme'); } catch (e) {}
+      var dark = saved
+        ? saved === 'dark'
+        : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    })();
+  </script>
+</head>
+<body>
+
+  <!-- ═══ ICON SPRITE — every icon in the app, no emoji, no image requests ═══ -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <g id="i-search"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></g>
+      <g id="i-cart"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12h11.4l1.8-8H6.2"/></g>
+      <g id="i-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></g>
+      <g id="i-grid"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g>
+      <g id="i-gauge"><path d="M12 21a9 9 0 1 1 9-9"/><path d="M12 12l4.5-3"/></g>
+      <g id="i-logout"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></g>
+      <g id="i-back"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></g>
+      <g id="i-close"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></g>
+      <g id="i-check"><path d="M20 6L9 17l-5-5"/></g>
+      <g id="i-clock"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/></g>
+      <g id="i-go"><path d="M9 18l6-6-6-6"/></g>
+      <g id="i-plus"><path d="M12 5v14"/><path d="M5 12h14"/></g>
+      <!-- Item categories -->
+      <g id="i-equipment"><path d="M9 3h6"/><path d="M10 3v6.5L4.8 18a2 2 0 0 0 1.7 3h11a2 2 0 0 0 1.7-3L14 9.5V3"/><path d="M7.2 14h9.6"/></g>
+      <g id="i-material"><path d="M8 2h8"/><path d="M9 2v4L5.5 20a1.6 1.6 0 0 0 1.6 2h9.8a1.6 1.6 0 0 0 1.6-2L15 6V2"/></g>
+      <g id="i-slide"><rect x="4" y="2.5" width="16" height="19" rx="1.6"/><path d="M4 8h16"/><circle cx="12" cy="15" r="3"/></g>
+      <g id="i-model"><circle cx="12" cy="6" r="3"/><path d="M12 9v7"/><path d="M8 12h8"/><path d="M9 21l3-5 3 5"/></g>
+      <g id="i-sun"><circle cx="12" cy="12" r="4.2"/><path d="M12 2v2.4"/><path d="M12 19.6V22"/><path d="M4.2 4.2l1.7 1.7"/><path d="M18.1 18.1l1.7 1.7"/><path d="M2 12h2.4"/><path d="M19.6 12H22"/><path d="M4.2 19.8l1.7-1.7"/><path d="M18.1 5.9l1.7-1.7"/></g>
+      <g id="i-moon"><path d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></g>
+      <g id="i-all"><rect x="3" y="4" width="18" height="6" rx="1.5"/><rect x="3" y="14" width="18" height="6" rx="1.5"/></g>
+    </defs>
+  </svg>
+
+  <!-- ═══ HEADER — logo, search, actions ═══════════════════════════════════ -->
+  <header>
+    <a class="brand" href="/" aria-label="Lab Hub home">
+      <span class="logo-slot">
+        <img id="logo" src="{% static 'images/pshs-logo.png' %}" alt=""
+             onerror="this.remove();document.getElementById('logo-fallback').hidden=false">
+        <span class="logo-fallback" id="logo-fallback" hidden aria-hidden="true">PS</span>
+      </span>
+      <span class="brand-text">
+        <span class="brand-name">Lab Hub</span>
+        <span class="brand-sub">PSHS-CARC Biology</span>
+      </span>
+    </a>
+
+    <div class="searchbar">
+      <svg class="ico" viewBox="0 0 24 24"><use href="#i-search"/></svg>
+      <input type="text" id="search-bar" placeholder="Search equipment, slides, models"
+             autocomplete="off" aria-label="Search inventory">
+      <button type="button" class="search-clear" id="search-clear" hidden
+              onclick="clearSearch()" aria-label="Clear search">
+        <svg class="ico" viewBox="0 0 24 24"><use href="#i-close"/></svg>
+      </button>
+    </div>
+
+    <div class="header-actions">
+      {% if current_role != 'student_teacher' %}
+      <a href="/dashboard/" class="hbtn" id="dashboard-link" title="Lab dashboard">
+        <svg class="ico" viewBox="0 0 24 24"><use href="#i-gauge"/></svg>
+        <span>Dashboard</span>
+      </a>
+      {% endif %}
+      <button class="hbtn hbtn-cart" onclick="goToForm()" title="Your request">
+        <svg class="ico" viewBox="0 0 24 24"><use href="#i-cart"/></svg>
+        <span>Request</span>
+        <span class="cart-badge hidden" id="cart-badge">0</span>
+      </button>
+      <button class="hbtn hbtn-icon theme-btn" onclick="toggleTheme()"
+              title="Switch between light and dark" aria-label="Switch theme">
+        <svg class="ico i-sun" viewBox="0 0 24 24"><use href="#i-sun"/></svg>
+        <svg class="ico i-moon" viewBox="0 0 24 24"><use href="#i-moon"/></svg>
+      </button>
+      <a href="/accounts/logout/" class="hbtn hbtn-icon" title="Sign out">
+        <svg class="ico" viewBox="0 0 24 24"><use href="#i-logout"/></svg>
+      </a>
+    </div>
+  </header>
+
+  <!-- ═══ STATUS STRIP ════════════════════════════════════════════════════ -->
+  <div class="strip" id="stat-strip">
+    <div class="strip-cell">
+      <span class="strip-num" id="stat-total">—</span>
+      <span class="strip-lbl">Items catalogued</span>
+    </div>
+    <div class="strip-cell">
+      <span class="strip-num" id="stat-avail">—</span>
+      <span class="strip-lbl">Available now</span>
+    </div>
+    <div class="strip-cell">
+      <span class="strip-num" id="stat-cart">0</span>
+      <span class="strip-lbl">In your request</span>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- ═══ CATEGORY RAIL ═════════════════════════════════════════════════ -->
+    <nav class="rail" aria-label="Categories">
+      <div class="rail-scroll" id="rail-scroll">
+        <button class="cat active" onclick="setPrimaryFilter('all', this)">
+          <span class="cat-ico"><svg class="ico" viewBox="0 0 24 24"><use href="#i-all"/></svg></span>
+          <span class="cat-lbl">All items</span>
+        </button>
+        <button class="cat" onclick="setPrimaryFilter('Equipment', this)">
+          <span class="cat-ico"><svg class="ico" viewBox="0 0 24 24"><use href="#i-equipment"/></svg></span>
+          <span class="cat-lbl">Equipment</span>
+        </button>
+        <button class="cat" onclick="setPrimaryFilter('Material', this)">
+          <span class="cat-ico"><svg class="ico" viewBox="0 0 24 24"><use href="#i-material"/></svg></span>
+          <span class="cat-lbl">Materials</span>
+        </button>
+        <button class="cat" onclick="setPrimaryFilter('Slide', this)">
+          <span class="cat-ico"><svg class="ico" viewBox="0 0 24 24"><use href="#i-slide"/></svg></span>
+          <span class="cat-lbl">Slides</span>
+        </button>
+        <button class="cat" onclick="setPrimaryFilter('Model', this)">
+          <span class="cat-ico"><svg class="ico" viewBox="0 0 24 24"><use href="#i-model"/></svg></span>
+          <span class="cat-lbl">Models</span>
+        </button>
+
+        <span class="rail-sep" role="presentation"></span>
+
+        <select id="sub-filter" class="refine" onchange="setSubFilter()" aria-label="Refine">
+          <option value="all">Any specific type</option>
+          <option value="beaker">Beakers</option>
+          <option value="flask">Flasks</option>
+          <option value="cylinder">Graduated cylinders</option>
+          <option value="agar">Agar &amp; media</option>
+          <option value="human">Human anatomy</option>
+          <option value="plant">Plant biology</option>
+          <option value="bacteria">Bacteria &amp; micro</option>
+        </select>
+      </div>
+    </nav>
+
+    <main>
+      <!-- PAGE 1: Inventory Grid -->
+      <div id="page-grid" class="page active">
+        <div class="grid-wrap">
+          <div class="grid-head">
+            <h1 id="current-filter-label">All items</h1>
+            <span class="grid-count" id="grid-count"></span>
+          </div>
+          <div class="grid-container" id="inventory-grid" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- PAGE 2: Item Details -->
+      <div id="page-details" class="page">
+        <div class="details-container">
+          <div class="details-left">
+            <div class="item-text">
+              <h2 id="det-name">Item Name</h2>
+              <p  id="det-type">Type</p>
+              <div id="variant-selector-wrap" style="margin-top:15px;display:none;">
+                <label for="det-variant">
+                  Select variation / size
+                </label>
+                <select id="det-variant" class="variant-selector"
+                        onchange="selectVariant(this.value)"></select>
+              </div>
+            </div>
+          </div>
+          <div class="details-right">
+            <div class="stats-block">
+              <div class="stat-row">
+                <span class="stat-label">Total Stock</span>
+                <span class="stat-value" id="det-total">—</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Available</span>
+                <span class="stat-value" id="det-avail">—</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Currently Borrowed</span>
+                <span class="stat-value" id="det-borrowed">—</span>
+              </div>
+              <div class="stat-row">
+                <span class="stat-label">Unit</span>
+                <span class="stat-value" id="det-unit">—</span>
+              </div>
+              <div class="borrows-list" id="det-borrows-wrap">
+                <h4>Active Borrow Records</h4>
+                <div id="det-borrows"></div>
+              </div>
+            </div>
+            <div>
+              <div class="qty-row">
+                <span class="qty-label">Qty to borrow:</span>
+                <div class="qty-ctrl">
+                  <button class="qty-btn" onclick="changeQty(-1)" aria-label="Decrease">
+                    <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
+                  </button>
+                  <input class="qty-input" type="number" id="det-qty"
+                         value="1" min="1" oninput="validateDetailQty()">
+                  <button class="qty-btn" onclick="changeQty(1)" aria-label="Increase">
+                    <svg class="ico" viewBox="0 0 24 24"><use href="#i-plus"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="qty-error" id="det-qty-error"></div>
+              <div class="action-buttons" style="margin-top:12px">
+                <button class="btn-main" id="btn-add-cart" onclick="addToCart()">
+                  Add to request
+                </button>
+                <button class="btn-main btn-remove" id="btn-remove-cart"
+                        onclick="removeCurrentFromCart()" style="display:none">
+                  <svg class="ico" viewBox="0 0 24 24"><use href="#i-close"/></svg> Remove
+                </button>
+                <button class="btn-back" onclick="navigateTo('page-grid')" aria-label="Back to inventory">
+                  <svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 3: Borrow Form -->
+      <div id="page-form" class="page">
+        <div class="form-container">
+          <div class="lab-form" id="lab-form">
+            <!-- ── HEADER ── -->
+            <div class="lab-form-title">PHILIPPINE SCIENCE HIGH SCHOOL SYSTEM</div>
+            <div class="lab-form-campus-row">
+              <span>CAMPUS:</span>
+              <input type="text" id="lf-campus" class="lab-input lab-input-inline" value="CAR" style="width:120px" readonly>
+            </div>
+            <div class="lab-form-subtitle">LABORATORY REQUEST AND EQUIPMENT ACCOUNTABILITY FORM</div>
+
+            <!-- ── ROW: Control No / SY ── -->
+            <div class="lab-row lab-row-right">
+              <div class="lab-field">
+                <span class="lab-label">Control No:</span>
+                <input type="text" id="lf-control" class="lab-input" placeholder="Auto-generated" readonly>
+              </div>
+              <div class="lab-field">
+                <span class="lab-label">SY:</span>
+                <input type="text" id="lf-sy" class="lab-input" style="width:120px" readonly>
+              </div>
+            </div>
+
+            <!-- ── DETAILS GRID ── -->
+            <div class="lab-row">
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Grade Level and Section:</span>
+                <input type="text" id="f-section" class="lab-input" oninput="clearErr(this)">
+              </div>
+              <div class="lab-field">
+                <span class="lab-label">Number of Students:</span>
+                <input type="number" id="f-num-students" class="lab-input" style="width:100px">
+              </div>
+            </div>
+            <div class="lab-row">
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Subject:</span>
+                <input type="text" id="f-purpose" class="lab-input" oninput="clearErr(this)">
+              </div>
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Concurrent Topic:</span>
+                <input type="text" id="f-topic" class="lab-input">
+              </div>
+            </div>
+            <div class="lab-row">
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Unit:</span>
+                <input type="text" id="f-unit" class="lab-input">
+              </div>
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Teacher In-Charge:</span>
+                <input type="text" id="f-teacher" class="lab-input" oninput="clearErr(this)">
+              </div>
+            </div>
+            <div class="lab-row">
+              <div class="lab-field lab-field-full">
+                <span class="lab-label">Venue of the Experiment:</span>
+                <input type="text" id="f-venue" class="lab-input">
+              </div>
+            </div>
+            <div class="lab-row">
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Date/Time Needed:</span>
+                <input type="datetime-local" id="f-datetime" class="lab-input" onchange="clearErr(this)">
+              </div>
+              <div class="lab-field lab-field-grow">
+                <span class="lab-label">Return Date:</span>
+                <input type="date" id="f-return" class="lab-input" onchange="clearErr(this)">
+              </div>
+            </div>
+
+            <!-- ── MATERIALS TABLE ── -->
+            <div class="lab-table-label">Materials / Equipment Needed:</div>
+            <table class="lab-table">
+              <thead>
+                <tr>
+                  <th class="col-qty">Quantity</th>
+                  <th>Item</th>
+                  <th>Description</th>
+                  <th class="col-remarks">Issued<br>Condition / Remarks</th>
+                  <th class="col-remarks">Returned<br>Condition / Remarks</th>
+                </tr>
+              </thead>
+              <tbody id="lf-items-tbody">
+                <!-- Auto-populated from cart -->
+              </tbody>
+            </table>
+            
+            <div id="cart-empty-msg" class="cart-empty" style="display:none; font-family: var(--f);">
+              No items in cart.
+              <a href="#" onclick="navigateTo('page-grid'); return false;" style="color:var(--blue)">Browse inventory</a>
+            </div>
+
+            <!-- ── CUSTODY SECTION ── -->
+            <div class="lab-row" style="margin-top:16px">
+              <div class="lab-field" style="flex:1"></div>
+              <div class="lab-field">
+                <span class="lab-label">Received by:</span>
+                <input type="text" class="lab-input lab-input-sig" disabled>
+              </div>
+              <div class="lab-field">
+                <span class="lab-label">Received and Inspected by:</span>
+                <input type="text" class="lab-input lab-input-sig" disabled>
+              </div>
+            </div>
+            <div class="lab-row">
+              <div class="lab-field" style="flex:1"></div>
+              <div class="lab-field">
+                <span class="lab-label">Date:</span>
+                <input type="text" class="lab-input lab-input-sig" disabled>
+              </div>
+              <div class="lab-field">
+                <span class="lab-label">Date:</span>
+                <input type="text" class="lab-input lab-input-sig" disabled>
+              </div>
+            </div>
+
+            <!-- ── NOTICE ── -->
+            <div class="lab-notice">
+              <p>• Fill out this form completely and legibly; transact with the Unit SRA concerned during office hours.</p>
+              <p>• Requests not in accordance with existing Unit regulations and considerations may not be granted.</p>
+            </div>
+
+            <!-- ── REQUESTED BY / DATE REQUESTED ── -->
+            <div class="lab-row">
+              <div class="lab-field lab-field-grow" style="flex-direction:column; align-items:flex-start">
+                <div style="display:flex; width:100%; align-items:baseline">
+                  <span class="lab-label">Requested by:</span>
+                  <input type="text" id="f-name" class="lab-input" oninput="clearErr(this)"
+                         value="{{ request.user.get_full_name|default:request.user.username }}">
+                </div>
+                <span class="lab-sublabel" style="align-self:center">Teacher / Student</span>
+              </div>
+              <div class="lab-field">
+                <span class="lab-label">Date Requested:</span>
+                <input type="text" id="lf-date-requested" class="lab-input" style="width:160px" readonly>
+              </div>
+            </div>
+
+            <!-- ── GROUP NAMES ── -->
+            <div class="lab-group-label">
+              If user of the lab is a group, list down the names of students.
+            </div>
+            <div class="lab-group-lines" id="group-names-list"></div>
+            <button type="button" class="lab-add-name" id="btn-add-group-name" onclick="addGroupNameSlot()">
+              + Add another name
+            </button>
+            
+            <input type="hidden" id="f-notes" value="">
+
+            <!-- ── ENDORSEMENT / APPROVAL ── -->
+            <div class="lab-row" style="margin-top:18px">
+              <div class="lab-field lab-field-grow" style="flex-direction:column; align-items:flex-start">
+                <div style="display:flex; width:100%; align-items:baseline">
+                  <span class="lab-label">Endorsed by:</span>
+                  <input type="text" class="lab-input" disabled>
+                </div>
+                <span class="lab-sublabel" style="align-self:center">Subject Teacher / Unit Head</span>
+              </div>
+              <div class="lab-field lab-field-grow" style="flex-direction:column; align-items:flex-start">
+                <div style="display:flex; width:100%; align-items:baseline">
+                  <span class="lab-label">Approved by:</span>
+                  <input type="text" class="lab-input" disabled>
+                </div>
+                <span class="lab-sublabel" style="align-self:center">SRS / SRA</span>
+              </div>
+            </div>
+
+            <!-- ── FOOTER CODE ── -->
+            <div class="lab-form-code">PSHS-00-F-CID-20-Ver02-Rev1-10/18/20</div>
+          </div>
+
+          <div class="form-footer">
+            <div class="footer-btns" style="width:100%; justify-content:flex-end">
+              <button class="btn-cancel" onclick="navigateTo('page-grid')">Cancel</button>
+              <button class="btn-submit" id="btn-submit" onclick="submitForm()">
+                Submit &amp; Download PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- PAGE 4: Success -->
+      <div id="page-success" class="page">
+        <div class="success-card">
+          <div class="success-icon"><svg class="ico" viewBox="0 0 24 24"><use href="#i-check"/></svg></div>
+          <h2>Request Submitted!</h2>
+          <p>Your borrowing request has been sent to the lab personnel for review.
+             Keep your reference number for follow-up.</p>
+          <div class="ref-badge" id="success-ref">BRW-000000</div>
+          <div class="pending-note" id="success-summary"></div>
+          <p style="font-size:0.8rem;color:var(--mid)">
+            Status: <strong style="color:var(--warn)">PENDING APPROVAL</strong>
+            — Lab personnel must approve before items are released.
+          </p>
+          <button class="btn-new" onclick="startOver()">Make Another Request</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script>
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  STATE
+  // ═══════════════════════════════════════════════════════════════════════════
+  let ITEMS = [];           // populated by loadInventory() from /api/inventory/
+  let cart = [];
+  let currentItem  = null;
+  let currentGroup = null;
+  let currentPrimaryType = 'all';
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  DATA LOADING  (replaces the old hardcoded ITEMS array)
+  // ═══════════════════════════════════════════════════════════════════════════
+  function showSkeleton() {
+    const grid = document.getElementById('inventory-grid');
+    grid.innerHTML = Array.from({ length: 10 }, () =>
+      `<div class="skel">
+         <div class="skel-line"></div>
+         <div class="skel-line"></div>
+         <div class="skel-line short"></div>
+       </div>`).join('');
+  }
+
+  async function loadInventory() {
+    showSkeleton();
+    try {
+      const res = await fetch('/api/inventory/');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      ITEMS = await res.json();
+      applyFilters();
+      updateStats();
+    } catch (err) {
+      console.error('Failed to load inventory:', err);
+      document.getElementById('inventory-grid').innerHTML =
+        '<div class="no-results" style="grid-column:1/-1">' +
+        '<strong>Couldn\'t load the inventory.</strong>' +
+        '<span>The server may have stopped. Check the terminal, then try again.</span>' +
+        '<button class="btn-ghost" onclick="loadInventory()">Retry</button></div>';
+    } finally {
+      // Skeletons are replaced by renderGrid; nothing to tear down.
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  GROUPING
+  // ═══════════════════════════════════════════════════════════════════════════
+  function groupItems(itemsList) {
+    const groups = {};
+    itemsList.forEach(item => {
+      let base    = item.name;
+      let variant = 'Standard';
+
+      if (item.name.includes(',')) {
+        const parts = item.name.split(',');
+        base    = parts[0].trim();
+        variant = parts.slice(1).join(',').trim();
+      } else if (item.name.match(/^(.*?) \((Small|Medium|Large|XL|Pack.*|0\.01g)\)$/i)) {
+        const m = item.name.match(/^(.*?) \((Small|Medium|Large|XL|Pack.*|0\.01g)\)$/i);
+        base    = m[1].trim();
+        variant = m[2].trim();
+      } else if (item.name.match(/^(.*?)\s+(w\.m\.|c\.s\.|l\.s\.|sec\.|smear|troph\.|cyst|egg|larva|scolex|segment|fitted sheet|piece|v\.s\.).*$/i)) {
+        const m = item.name.match(/^(.*?)\s+(w\.m\.|c\.s\.|l\.s\.|sec\.|smear|troph\.|cyst|egg|larva|scolex|segment|fitted sheet|piece|v\.s\.).*$/i);
+        base    = m[1].trim();
+        variant = item.name.substring(base.length).trim();
+      }
+
+      if (!groups[base]) {
+        groups[base] = {
+          baseName:       base,
+          id:             item.id,
+          type:           item.type,
+          unit:           item.unit,
+          variants:       [],
+          totalAvailable: 0,
+        };
+      }
+      groups[base].variants.push({ ...item, variantName: variant });
+      groups[base].totalAvailable += item.available;
+    });
+    return Object.values(groups);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  FILTERING & RENDERING
+  // ═══════════════════════════════════════════════════════════════════════════
+  function returnToGrid() {
+    const active = document.querySelector('.page.active');
+    if (active && active.id === 'page-details') navigateTo('page-grid');
+  }
+
+  function setPrimaryFilter(type, btn) {
+    currentPrimaryType = type;
+    document.querySelectorAll('.cat').forEach(b => {
+      b.classList.toggle('active', b === btn);
+    });
+    const label = btn.querySelector('.cat-lbl');
+    document.getElementById('current-filter-label').textContent =
+      label ? label.textContent : 'All items';
+    btn.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    applyFilters();
+    returnToGrid();
+  }
+
+  function setSubFilter() {
+    applyFilters();
+    returnToGrid();
+  }
+
+  function applyFilters() {
+    const searchQuery = document.getElementById('search-bar').value.toLowerCase();
+    const subFilter   = document.getElementById('sub-filter').value;
+
+    const filteredItems = ITEMS.filter(item => {
+      const matchType   = currentPrimaryType === 'all' || item.type === currentPrimaryType;
+      const matchSearch = item.name.toLowerCase().includes(searchQuery);
+      let   matchSub    = true;
+      if (subFilter !== 'all') {
+        matchSub = item.name.toLowerCase().includes(subFilter) ||
+                   item.type.toLowerCase().includes(subFilter);
+      }
+      return matchType && matchSearch && matchSub;
+    });
+
+    renderGrid(filteredItems);
+  }
+
+  function renderGrid(filteredArray) {
+    const grid         = document.getElementById('inventory-grid');
+    const groupedItems = groupItems(filteredArray);
+    const countEl      = document.getElementById('grid-count');
+
+    if (countEl) {
+      countEl.textContent = groupedItems.length
+        ? `${groupedItems.length} ${groupedItems.length === 1 ? 'result' : 'results'}`
+        : '';
+    }
+
+    if (!groupedItems.length) {
+      grid.innerHTML =
+        '<div class="no-results">' +
+        '<strong>No items match those filters.</strong>' +
+        '<span>Try a different category, or clear the search box.</span>' +
+        '<button class="btn-ghost" onclick="resetFilters()">Clear filters</button>' +
+        '</div>';
+      return;
+    }
+
+    // Build off-document, then attach once — one reflow instead of hundreds.
+    const frag = document.createDocumentFragment();
+
+    groupedItems.forEach((group, i) => {
+      const totalGroupStock = group.variants.reduce((s, v) => s + v.total, 0);
+      const pct        = totalGroupStock > 0 ? group.totalAvailable / totalGroupStock : 0;
+      const state      = group.totalAvailable === 0 ? 'out' : pct <= 0.3 ? 'low' : '';
+      const varCount   = group.variants.length;
+
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'grid-item' + (state === 'out' ? ' is-out' : '');
+      row.style.setProperty('--d', Math.min(i, 20) * 18 + 'ms');
+
+      row.innerHTML = `
+        <span class="grid-item-info">
+          <span class="grid-item-name">${escHtml(group.baseName)}</span>
+          <span class="row-sub">
+            ${escHtml(group.type)}
+            ${varCount > 1 ? `<span class="var-chip">${varCount} sizes</span>` : ''}
+          </span>
+        </span>
+
+        <span class="row-graph">
+          <span class="bar"><span class="bar-fill ${state}"
+                style="width:${Math.round(pct * 100)}%"></span></span>
+        </span>
+
+        <span class="grid-item-avail ${state}">${
+          group.totalAvailable === 0
+            ? 'None left'
+            : `${group.totalAvailable} / ${totalGroupStock}`
+        }</span>`;
+
+      row.onclick = () => openGroupDetails(group);
+      frag.appendChild(row);
+    });
+
+    grid.replaceChildren(frag);
+  }
+
+  function escHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => (
+      {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]
+    ));
+  }
+
+  function resetFilters() {
+    document.getElementById('search-bar').value = '';
+    document.getElementById('sub-filter').value = 'all';
+    document.getElementById('search-clear').hidden = true;
+    const first = document.querySelector('.cat');
+    if (first) setPrimaryFilter('all', first);
+  }
+
+  function clearSearch() {
+    const box = document.getElementById('search-bar');
+    box.value = '';
+    document.getElementById('search-clear').hidden = true;
+    box.focus();
+    applyFilters();
+    returnToGrid();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  DETAILS PAGE  (unchanged from original)
+  // ═══════════════════════════════════════════════════════════════════════════
+  function openGroupDetails(group) {
+    currentGroup = group;
+
+    document.getElementById('det-name').textContent = group.baseName;
+    document.getElementById('det-type').textContent = group.type;
+
+    const variantWrap   = document.getElementById('variant-selector-wrap');
+    const variantSelect = document.getElementById('det-variant');
+
+    if (group.variants.length > 1) {
+      variantWrap.style.display = 'block';
+      variantSelect.innerHTML = group.variants.map((v, i) =>
+        `<option value="${i}">${v.variantName} (${v.available} ${v.unit} available)</option>`
+      ).join('');
+    } else {
+      variantWrap.style.display = 'none';
+      variantSelect.innerHTML = `<option value="0">${group.variants[0].variantName}</option>`;
+    }
+
+    selectVariant(0);
+    navigateTo('page-details');
+  }
+
+  function selectVariant(index) {
+    if (!currentGroup) return;
+    currentItem = currentGroup.variants[index];
+
+    document.getElementById('det-total').textContent  = `${currentItem.total} ${currentItem.unit}`;
+    document.getElementById('det-unit').textContent   = currentItem.unit;
+
+    const availEl = document.getElementById('det-avail');
+    availEl.textContent = `${currentItem.available} ${currentItem.unit}`;
+    availEl.className   = 'stat-value ' +
+      (currentItem.available === 0 ? 'out' : currentItem.available <= 3 ? 'warn' : 'ok');
+
+    const borrowedCount = currentItem.total - currentItem.available;
+    document.getElementById('det-borrowed').textContent = `${borrowedCount} ${currentItem.unit}`;
+
+    const wrap = document.getElementById('det-borrows-wrap');
+    const list = document.getElementById('det-borrows');
+    if (currentItem.borrows && currentItem.borrows.length) {
+      wrap.style.display = 'block';
+      list.innerHTML = currentItem.borrows.map(b =>
+        `<div class="borrow-row">
+           <span>${b.user} — ${b.qty} ${currentItem.unit}</span>
+           <span>Due: ${b.due}</span>
+         </div>`
+      ).join('');
+    } else {
+      wrap.style.display = 'none';
+    }
+
+    const qtyInput = document.getElementById('det-qty');
+    const inCart   = cart.find(c => c.item.id === currentItem.id);
+    qtyInput.value = inCart ? inCart.qty : 1;
+    qtyInput.max   = currentItem.available;
+    document.getElementById('det-qty-error').textContent = '';
+
+    updateDetailButtons();
+  }
+
+  function updateDetailButtons() {
+    if (!currentItem) return;
+    const btn       = document.getElementById('btn-add-cart');
+    const removeBtn = document.getElementById('btn-remove-cart');
+    const qty       = parseInt(document.getElementById('det-qty').value) || 0;
+    const inCart    = cart.find(c => c.item.id === currentItem.id);
+
+    if (currentItem.available === 0) {
+      btn.textContent = 'Out of stock';
+      btn.disabled    = true;
+      btn.className   = 'btn-main';
+      removeBtn.style.display = 'none';
+      return;
+    }
+    if (inCart) {
+      removeBtn.style.display = '';
+      if (qty !== inCart.qty) {
+        btn.textContent = 'Update request';
+        btn.className   = 'btn-main btn-update';
+        btn.disabled    = false;
+      } else {
+        btn.textContent = 'In your request';
+        btn.className   = 'btn-main btn-added';
+        btn.disabled    = false;
+      }
+    } else {
+      btn.textContent = 'Add to request';
+      btn.className   = 'btn-main';
+      btn.disabled    = false;
+      removeBtn.style.display = 'none';
+    }
+  }
+
+  function changeQty(delta) {
+    const input = document.getElementById('det-qty');
+    let v = parseInt(input.value) || 1;
+    v = Math.max(1, Math.min(currentItem.available, v + delta));
+    input.value = v;
+    validateDetailQty();
+  }
+
+  function validateDetailQty() {
+    if (!currentItem) return true;
+    const v     = parseInt(document.getElementById('det-qty').value) || 0;
+    const errEl = document.getElementById('det-qty-error');
+    if (v < 1) { errEl.textContent = 'Quantity must be at least 1.'; return false; }
+    if (v > currentItem.available) {
+      errEl.textContent = `Only ${currentItem.available} ${currentItem.unit} available.`;
+      return false;
+    }
+    errEl.textContent = '';
+    updateDetailButtons();
+    return true;
+  }
+
+  function addToCart() {
+    if (!validateDetailQty()) return;
+    const qty      = parseInt(document.getElementById('det-qty').value);
+    const existing = cart.find(c => c.item.id === currentItem.id);
+    if (existing) {
+      existing.qty = qty;
+      showToast(`Updated ${currentItem.name} → ${qty} ${currentItem.unit}`, 'success');
+    } else {
+      cart.push({ item: currentItem, qty });
+      showToast(`${currentItem.name} added to cart`, 'success');
+    }
+    updateCartBadge();
+    updateDetailButtons();
+  }
+
+  function removeCurrentFromCart() {
+    const idx = cart.findIndex(c => c.item.id === currentItem.id);
+    if (idx === -1) return;
+    cart.splice(idx, 1);
+    updateCartBadge();
+    document.getElementById('det-qty').value = 1;
+    showToast(`${currentItem.name} removed from cart`, '');
+    updateDetailButtons();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  FORM PAGE
+  // ═══════════════════════════════════════════════════════════════════════════
+  function goToForm() {
+    if (cart.length === 0) {
+      showToast('Your cart is empty. Browse inventory to add items.', 'error');
+      navigateTo('page-grid');
+      return;
+    }
+    
+    // Autofill fields
+    document.getElementById('lf-sy').value = computeSchoolYear();
+    document.getElementById('lf-date-requested').value = formatDateRequested();
+
+    renderCartTable();
+    navigateTo('page-form');
+  }
+
+  function renderCartTable() {
+    const tbody = document.getElementById('lf-items-tbody');
+    const emptyMsg = document.getElementById('cart-empty-msg');
+    
+    if (cart.length === 0) {
+      tbody.innerHTML = '';
+      emptyMsg.style.display = 'block';
+      return;
+    }
+    emptyMsg.style.display = 'none';
+    
+    tbody.innerHTML = cart.map((c, i) => `
+      <tr>
+        <td class="col-qty">
+          <input type="number" class="lab-input lab-input-cell" value="${c.qty}"
+                 id="cqty-${i}" min="1" max="${c.item.available}" oninput="validateCartQty(${i})">
+          <div class="field-error" style="font-size:8px" id="cerr-${i}"></div>
+        </td>
+        <td><span class="lab-cell-text">${escHtml(c.item.name)}</span></td>
+        <td><span class="lab-cell-text">${escHtml(c.item.type_label || c.item.type)}</span></td>
+        <td class="col-remarks"><input type="text" class="lab-input lab-input-cell"></td>
+        <td class="col-remarks"><input type="text" class="lab-input lab-input-cell"></td>
+      </tr>`).join('');
+  }
+
+  const GROUP_NAME_DEFAULT_SLOTS = 5;
+
+  function addGroupNameSlot(focus = true) {
+    const list = document.getElementById('group-names-list');
+    if (!list) return;
+
+    const row = document.createElement('div');
+    row.className = 'lab-group-slot';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'lab-input lab-group-input';
+    input.placeholder = 'Student name';
+    input.autocomplete = 'name';
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'lab-group-remove';
+    remove.setAttribute('aria-label', 'Remove name');
+    remove.innerHTML = '<svg class="ico" viewBox="0 0 24 24"><use href="#i-close"/></svg>';
+    remove.onclick = () => {
+      row.remove();
+      syncGroupNameRemoveButtons();
+    };
+
+    row.appendChild(input);
+    row.appendChild(remove);
+    list.appendChild(row);
+    syncGroupNameRemoveButtons();
+    if (focus) input.focus();
+  }
+
+  function syncGroupNameRemoveButtons() {
+    const slots = document.querySelectorAll('#group-names-list .lab-group-slot');
+    slots.forEach((slot) => {
+      const btn = slot.querySelector('.lab-group-remove');
+      if (btn) btn.hidden = slots.length <= GROUP_NAME_DEFAULT_SLOTS;
+    });
+  }
+
+  function getGroupNames() {
+    return [...document.querySelectorAll('#group-names-list .lab-group-input')]
+      .map((el) => el.value.trim())
+      .filter(Boolean);
+  }
+
+  function initGroupNameSlots() {
+    const list = document.getElementById('group-names-list');
+    if (!list || list.children.length) return;
+    for (let i = 0; i < GROUP_NAME_DEFAULT_SLOTS; i++) addGroupNameSlot(false);
+  }
+
+  function validateCartQty(idx) {
+    const input = document.getElementById(`cqty-${idx}`);
+    const errEl = document.getElementById(`cerr-${idx}`);
+    const v     = parseInt(input.value) || 0;
+    const item  = cart[idx].item;
+    if (v < 1) {
+      input.classList.add('error'); errEl.textContent = 'Min 1'; return false;
+    }
+    if (v > item.available) {
+      input.classList.add('error'); errEl.textContent = `Max ${item.available}`; return false;
+    }
+    input.classList.remove('error'); errEl.textContent = '';
+    cart[idx].qty = v;
+    return true;
+  }
+
+  function removeFromCart(idx) {
+    const name = cart[idx].item.name;
+    cart.splice(idx, 1);
+    updateCartBadge();
+    renderCartTable();
+    showToast(`${name} removed from cart`, '');
+    if (cart.length === 0) document.getElementById('cart-empty-msg').style.display = 'block';
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  FORM VALIDATION
+  // ═══════════════════════════════════════════════════════════════════════════
+  function clearErr(el) {
+    el.classList.remove('invalid');
+    el.classList.remove('lab-input-error');
+    const errEl = document.getElementById('err-' + el.id.replace('f-', ''));
+    if (errEl) errEl.textContent = '';
+  }
+
+  function setErr(fieldId, msg) {
+    const el = document.getElementById('f-' + fieldId);
+    if (!el) return false;
+    el.classList.add('invalid');
+    el.classList.add('lab-input-error');
+    const errEl = document.getElementById('err-' + fieldId);
+    if (errEl) errEl.textContent = msg;
+    return false;
+  }
+
+  function validateReturnDate() {
+    const dt  = document.getElementById('f-datetime').value;
+    const ret = document.getElementById('f-return').value;
+    if (dt && ret && ret < dt.split('T')[0]) {
+      return setErr('return', 'Return date cannot be before the borrow date.');
+    }
+    return true;
+  }
+
+  function validateForm() {
+    let valid = true;
+    cart.forEach((_, idx) => { if (!validateCartQty(idx)) valid = false; });
+    if (cart.length === 0) {
+      showToast('Add at least one item to your cart.', 'error');
+      return false;
+    }
+    const rules = [
+      ['name',    'Borrower name is required.'],
+      ['section', 'Section / Grade level is required.'],
+      ['teacher', 'Teacher-in-charge is required.'],
+      ['purpose', 'Purpose / experiment name is required.'],
+      ['datetime','Date and time needed is required.'],
+      ['return',  'Expected return date is required.'],
+    ];
+    const roleEl = document.getElementById('f-role');
+    if (roleEl && roleEl.tagName === 'SELECT' && !roleEl.value.trim()) {
+      setErr('role', 'Please select your role.');
+      valid = false;
+    }
+    rules.forEach(([id, msg]) => {
+      const el = document.getElementById('f-' + id);
+      if (!el || !el.value.trim()) { setErr(id, msg); valid = false; }
+    });
+    if (!validateReturnDate()) valid = false;
+    return valid;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  FORM SUBMISSION  — now posts to Django /api/borrow/
+  // ═══════════════════════════════════════════════════════════════════════════
+  async function submitForm() {
+    if (!validateForm()) {
+      showToast('Please fix the errors before submitting.', 'error');
+      return;
+    }
+
+    const submitBtn = document.getElementById('btn-submit');
+    submitBtn.disabled  = true;
+    submitBtn.classList.add('loading');
+    submitBtn.textContent = 'Submitting…';
+    const roleEl = document.getElementById('f-role');
+    const extras = [
+      `Concurrent Topic: ${document.getElementById('f-topic')?.value || ''}`,
+      `Unit: ${document.getElementById('f-unit')?.value || ''}`,
+      `Venue: ${document.getElementById('f-venue')?.value || ''}`,
+      `No. of Students: ${document.getElementById('f-num-students')?.value || ''}`,
+      `Group Members: ${getGroupNames().join(', ')}`
+    ].filter(s => !s.endsWith(': ')).join('\n');
+    const baseNotes = document.getElementById('f-notes').value.trim();
+    const finalNotes = [baseNotes, extras].filter(Boolean).join('\n\n');
+
+    const payload = {
+      borrower_name: document.getElementById('f-name').value.trim(),
+      section:       document.getElementById('f-section').value.trim(),
+      teacher_name:  document.getElementById('f-teacher').value.trim(),
+      role:          roleEl ? roleEl.value : 'Student',
+      purpose:       document.getElementById('f-purpose').value.trim(),
+      date_needed:   document.getElementById('f-datetime').value,
+      return_date:   document.getElementById('f-return').value,
+      notes:         finalNotes,
+      items: cart.map(c => ({
+        item_id:  c.item.id,
+        quantity: c.qty,
+      })),
+    };
+
+    try {
+      const res = await fetch('/api/borrow/', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showToast(data.error || 'Submission failed. Please try again.', 'error');
+        submitBtn.disabled  = false;
+        submitBtn.classList.remove('loading');
+        submitBtn.textContent = 'Submit & Download PDF';
+        return;
+      }
+
+      // ── Success ────────────────────────────────────────────────────────
+      const ref          = data.ref;
+      const borrowerName = payload.borrower_name;
+      const purpose      = payload.purpose;
+      const dateNeeded   = payload.date_needed.replace('T', ' ');
+      const returnDate   = payload.return_date;
+      const itemLines    = cart.map(c => `• ${c.item.name} × ${c.qty} ${c.item.unit}`).join('\n');
+
+      // Generate PDF before clearing the cart
+      await downloadLabFormPDF(ref, cart);
+
+      document.getElementById('success-ref').textContent = ref;
+      document.getElementById('success-summary').innerHTML =
+        `<strong>Borrower:</strong> ${borrowerName}<br>
+         <strong>Purpose:</strong> ${purpose}<br>
+         <strong>Date needed:</strong> ${dateNeeded}<br>
+         <strong>Return by:</strong> ${returnDate}<br><br>
+         <strong>Items:</strong><br>${itemLines.replace(/\n/g, '<br>')}`;
+
+      cart = [];
+      updateCartBadge();
+      navigateTo('page-success');
+
+    } catch (err) {
+      console.error('Submit error:', err);
+      showToast('Network error. Check that the server is running.', 'error');
+      submitBtn.disabled  = false;
+      submitBtn.classList.remove('loading');
+      submitBtn.textContent = 'Submit & Download PDF';
+    }
+  }
+
+  function computeSchoolYear() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    if (month >= 5) return `${year}-${year + 1}`;
+    return `${year - 1}-${year}`;
+  }
+
+  function formatDateRequested() {
+    const now = new Date();
+    return now.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  }
+
+  async function downloadLabFormPDF(controlNo = '', items = cart) {
+    try {
+      const url = '/static/PSHS_Lab_Request_Form.pdf';
+      const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
+      const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+      const pdfDoc = await PDFDocument.load(existingPdfBytes);
+      const page = pdfDoc.getPages()[0];
+      const { height } = page.getSize();
+      const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+
+      const drawTxt = (text, x, y, size = 10) => {
+        if (text == null || text === '') return;
+        page.drawText(String(text), {
+          x, y: height - y, size, font, color: rgb(0, 0, 0),
+        });
+      };
+
+      const textWidth = (text, size) => font.widthOfTextAtSize(String(text || ''), size);
+
+      const wrapText = (text, size, maxWidth) => {
+        const raw = String(text || '').trim();
+        if (!raw) return [''];
+        const words = raw.split(/\s+/);
+        const lines = [];
+        let line = '';
+
+        const pushHardBroken = (word) => {
+          let chunk = '';
+          for (const ch of word) {
+            const next = chunk + ch;
+            if (textWidth(next, size) <= maxWidth) chunk = next;
+            else {
+              if (chunk) lines.push(chunk);
+              chunk = ch;
+            }
+          }
+          line = chunk;
+        };
+
+        words.forEach((word) => {
+          const test = line ? `${line} ${word}` : word;
+          if (textWidth(test, size) <= maxWidth) {
+            line = test;
+          } else {
+            if (line) lines.push(line);
+            if (textWidth(word, size) <= maxWidth) line = word;
+            else pushHardBroken(word);
+          }
+        });
+        if (line) lines.push(line);
+        return lines.length ? lines : [''];
+      };
+
+      drawTxt('CAR', 105, 63);
+      drawTxt(controlNo, 405, 115);
+      drawTxt(computeSchoolYear(), 495, 115);
+
+      drawTxt(document.getElementById('f-section').value, 180, 131);
+      drawTxt(document.getElementById('f-num-students')?.value || '', 455, 131);
+      drawTxt(document.getElementById('f-purpose').value, 100, 147);
+      drawTxt(document.getElementById('f-topic')?.value || '', 430, 147);
+      drawTxt(document.getElementById('f-unit')?.value || '', 85, 163);
+      drawTxt(document.getElementById('f-teacher').value, 440, 163);
+      drawTxt(document.getElementById('f-venue')?.value || '', 200, 179);
+
+      const dt = document.getElementById('f-datetime').value;
+      const ret = document.getElementById('f-return').value;
+      let dateStr = '', timeStr = '';
+      if (dt) {
+        dateStr = dt.split('T')[0];
+        timeStr = dt.split('T')[1];
+        if (ret && ret !== dateStr) dateStr += ' to ' + ret;
+      }
+      drawTxt(dateStr, 180, 195);
+      drawTxt(timeStr, 465, 195);
+
+      // Materials table — wipe the fixed template body and redraw to fit content
+      const tableLeft = 50;
+      const tableRight = 562;
+      const tableTop = 259;   // below header row (page-top coords)
+      const tableBottom = 421;
+      const colXs = [50, 110, 210, 382, 472, 562];
+      const textPad = 4;
+      const colTextMax = [
+        colXs[1] - colXs[0] - textPad * 2,
+        colXs[2] - colXs[1] - textPad * 2,
+        colXs[3] - colXs[2] - textPad * 2,
+      ];
+
+      const buildRows = (fontSize, lineHeight, vPad) => items.map((c) => {
+        const qtyLines = wrapText(c.qty, fontSize, colTextMax[0]);
+        const nameLines = wrapText(c.item.name, fontSize, colTextMax[1]);
+        const descLines = wrapText(c.item.type_label || c.item.type, fontSize, colTextMax[2]);
+        const lineCount = Math.max(qtyLines.length, nameLines.length, descLines.length, 1);
+        return {
+          qtyLines, nameLines, descLines,
+          height: Math.max(lineCount * lineHeight + vPad * 2, lineHeight + vPad * 2),
+        };
+      });
+
+      let fontSize = 9;
+      let lineHeight = 11;
+      let vPad = 3;
+      let rows = buildRows(fontSize, lineHeight, vPad);
+      let totalH = rows.reduce((s, r) => s + r.height, 0);
+      const availH = tableBottom - tableTop;
+
+      while (totalH > availH && fontSize > 6) {
+        fontSize -= 0.5;
+        lineHeight = fontSize + 2;
+        vPad = fontSize >= 8 ? 3 : 2;
+        rows = buildRows(fontSize, lineHeight, vPad);
+        totalH = rows.reduce((s, r) => s + r.height, 0);
+      }
+
+      // If still overflowing, compress row padding proportionally
+      const scale = totalH > availH ? availH / totalH : 1;
+      if (scale < 1) {
+        rows.forEach((r) => { r.height *= scale; });
+        lineHeight *= scale;
+        vPad *= scale;
+      }
+
+      page.drawRectangle({
+        x: tableLeft,
+        y: height - tableBottom,
+        width: tableRight - tableLeft,
+        height: tableBottom - tableTop,
+        color: rgb(1, 1, 1),
+      });
+
+      // Outer border + column rules
+      page.drawRectangle({
+        x: tableLeft,
+        y: height - tableBottom,
+        width: tableRight - tableLeft,
+        height: tableBottom - tableTop,
+        borderColor: rgb(0, 0, 0),
+        borderWidth: 1,
+      });
+      for (let i = 1; i < colXs.length - 1; i++) {
+        page.drawLine({
+          start: { x: colXs[i], y: height - tableTop },
+          end:   { x: colXs[i], y: height - tableBottom },
+          thickness: 0.75,
+          color: rgb(0, 0, 0),
+        });
+      }
+
+      let yCursor = tableTop;
+      rows.forEach((row) => {
+        const rowBottom = yCursor + row.height;
+        page.drawLine({
+          start: { x: tableLeft, y: height - rowBottom },
+          end:   { x: tableRight, y: height - rowBottom },
+          thickness: 0.75,
+          color: rgb(0, 0, 0),
+        });
+
+        const textTop = yCursor + vPad + fontSize;
+        row.qtyLines.forEach((line, i) => {
+          drawTxt(line, colXs[0] + textPad, textTop + i * lineHeight, fontSize);
+        });
+        row.nameLines.forEach((line, i) => {
+          drawTxt(line, colXs[1] + textPad, textTop + i * lineHeight, fontSize);
+        });
+        row.descLines.forEach((line, i) => {
+          drawTxt(line, colXs[2] + textPad, textTop + i * lineHeight, fontSize);
+        });
+
+        yCursor = rowBottom;
+      });
+
+      // Fill remaining empty space with blank rows so the grid still looks complete
+      while (yCursor < tableBottom - 1) {
+        const leftover = tableBottom - yCursor;
+        const h = Math.min(18, leftover);
+        const rowBottom = yCursor + h;
+        if (rowBottom < tableBottom - 0.5) {
+          page.drawLine({
+            start: { x: tableLeft, y: height - rowBottom },
+            end:   { x: tableRight, y: height - rowBottom },
+            thickness: 0.75,
+            color: rgb(0, 0, 0),
+          });
+        }
+        yCursor = rowBottom;
+        if (h < 18) break;
+      }
+
+      drawTxt(document.getElementById('f-name').value, 130, 553);
+      drawTxt(formatDateRequested(), 515, 553);
+
+      // Group names — default 5 line slots on the template; overflow continues below
+      const groupNames = getGroupNames();
+      const groupLeft = 155;
+      const groupMaxW = 400 - 155;
+      const groupAreaTop = 596;
+      const groupAreaBottom = 690;
+
+      page.drawRectangle({
+        x: 145,
+        y: height - groupAreaBottom,
+        width: 265,
+        height: groupAreaBottom - groupAreaTop,
+        color: rgb(1, 1, 1),
+      });
+
+      let gFont = 9;
+      let gLine = 12;
+      let gLines = [];
+      groupNames.forEach((name) => {
+        wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
+      });
+
+      while (gLines.length * gLine > (groupAreaBottom - groupAreaTop) && gFont > 6) {
+        gFont -= 0.5;
+        gLine = gFont + 3;
+        gLines = [];
+        groupNames.forEach((name) => {
+          wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
+        });
+      }
+
+      let gY = groupAreaTop + gFont;
+      gLines.forEach((line) => {
+        if (gY > groupAreaBottom) return;
+        drawTxt(line, groupLeft, gY, gFont);
+        gY += gLine;
+      });
+
+      const pdfBytes = await pdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Lab_Request_${controlNo || 'Draft'}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error('PDF generation error:', err);
+      showToast('Could not generate PDF.', 'error');
+    }
+  }
+
+  function startOver() {
+    ['f-section','f-teacher','f-purpose','f-datetime','f-return','f-notes']
+      .forEach(id => document.getElementById(id).value = '');
+    const roleEl = document.getElementById('f-role');
+    if (roleEl && roleEl.tagName === 'SELECT') roleEl.value = '';
+
+    const groupList = document.getElementById('group-names-list');
+    if (groupList) {
+      groupList.innerHTML = '';
+      initGroupNameSlots();
+    }
+
+    // Re-enable submit button in case user navigates back before a new submit
+    const sb = document.getElementById('btn-submit');
+    sb.disabled  = false;
+    sb.classList.remove('loading');
+    sb.textContent = 'Submit & Download PDF';
+
+    navigateTo('page-grid');
+    applyFilters();
+  }
+
+
+  // ── THEME ────────────────────────────────────────────────────────────────
+  function toggleTheme() {
+    var root = document.documentElement;
+    var next = root.dataset.theme === 'dark' ? 'light' : 'dark';
+    // The transition class is added only for the swap, then removed, so the
+    // eased colour change never bleeds into hover or entrance animations.
+    root.classList.add('theming');
+    root.dataset.theme = next;
+    try { localStorage.setItem('labhub-theme', next); } catch (e) {}
+    setTimeout(function () { root.classList.remove('theming'); }, 260);
+  }
+
+  // Follow the OS if the user hasn't chosen explicitly.
+  window.matchMedia('(prefers-color-scheme: dark)')
+    .addEventListener('change', function (e) {
+      var saved = null;
+      try { saved = localStorage.getItem('labhub-theme'); } catch (err) {}
+      if (!saved) document.documentElement.dataset.theme = e.matches ? 'dark' : 'light';
+    });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  UTILITIES
+  // ═══════════════════════════════════════════════════════════════════════════
+  function navigateTo(id) {
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    const main = document.querySelector('main');
+    if (main) main.scrollTop = 0;
+    window.scrollTo(0, 0);
+    if (id === 'page-form') renderCartTable();
+  }
+
+  function updateCartBadge() {
+    const badge = document.getElementById('cart-badge');
+    const total = cart.length;
+    badge.textContent = total;
+    badge.classList.toggle('hidden', total === 0);
+    if (total) {                     // brief pop so the change is noticed
+      badge.classList.remove('pop');
+      void badge.offsetWidth;        // restart the animation
+      badge.classList.add('pop');
+    }
+    const s = document.getElementById('stat-cart');
+    if (s) s.textContent = total;
+  }
+
+  // Live counters in the status strip.
+  function updateStats() {
+    const total = ITEMS.length;
+    const avail = ITEMS.reduce((s, i) => s + (i.available > 0 ? 1 : 0), 0);
+    countUp(document.getElementById('stat-total'), total);
+    countUp(document.getElementById('stat-avail'), avail);
+    document.getElementById('stat-cart').textContent = cart.length;
+  }
+
+  // Small count-up so the numbers arrive rather than snapping into place.
+  function countUp(el, target) {
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.textContent = target;
+      return;
+    }
+    const dur = 550, t0 = performance.now();
+    function tick(now) {
+      const k = Math.min((now - t0) / dur, 1);
+      el.textContent = Math.round(target * (1 - Math.pow(1 - k, 3)));
+      if (k < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  let toastTimer;
+  function showToast(msg, type) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className   = 'toast show ' + (type || '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  INIT
+  // ═══════════════════════════════════════════════════════════════════════════
+  // Debounced search — filtering 547 items on every keystroke was the one
+  // place the UI could visibly stutter on a slower phone.
+  (function wireSearch() {
+    const box   = document.getElementById('search-bar');
+    const clear = document.getElementById('search-clear');
+    let timer;
+    box.addEventListener('input', () => {
+      clear.hidden = !box.value;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        applyFilters();
+        returnToGrid();
+      }, 160);
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Escape') clearSearch();
+    });
+  })();
+
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('f-datetime').min = today + 'T00:00';
+  document.getElementById('f-return').min   = today;
+
+  // Fetch inventory from Django API (replaces the old hardcoded ITEMS array)
+  loadInventory();
+  initGroupNameSlots();
+
+  // ─── COOKIE HELPERS ────────────────────────────────────────────────────────
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+  }
+
+  function setCookie(name, value, days = 7) {
+    const date = new Date();
+    date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value};path=/;expires=${date.toUTCString()}`;
+  }
+
+  // ─── ROLE MANAGEMENT ───────────────────────────────────────────────────────
+  function initRole() {
+    const role = '{{ current_role }}';
+    updateDashboardLinkVisibility(role);
+  }
+
+  function updateDashboardLinkVisibility(role) {
+    const dashLink = document.getElementById('dashboard-link');
+    if (dashLink) {
+      if (role === 'lab_personnel' || role === 'it_personnel') {
+        dashLink.style.display = 'inline-flex';
+      } else {
+        dashLink.style.display = 'none';
+      }
+    }
+  }
+
+  initRole();
+  </script>
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+</body>
+</html>

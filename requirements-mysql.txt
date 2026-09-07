@@ -1,0 +1,18 @@
+# Extra dependency for running against MySQL instead of the default SQLite.
+#
+#   pip install -r requirements-mysql.txt
+#
+# This compiles from source on Linux/macOS, so install the C headers first:
+#
+#   Ubuntu / Debian / Mint
+#       sudo apt install python3-dev default-libmysqlclient-dev build-essential pkg-config
+#
+#   Fedora / RHEL
+#       sudo dnf install python3-devel mysql-devel gcc pkgconf
+#
+#   macOS (Homebrew)
+#       brew install mysql-client pkg-config
+#
+# Windows normally installs from a prebuilt wheel with no extra steps.
+
+mysqlclient==2.2.8
