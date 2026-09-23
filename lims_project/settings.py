@@ -15,6 +15,7 @@ CHANGES vs v1:
 
 from pathlib import Path
 from decouple import config, Csv
+import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -111,10 +112,9 @@ if DB_ENGINE in ('mysql', 'django.db.backends.mysql'):
     }
 else:
     DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.sqlite3',
-            'NAME':   BASE_DIR / 'db.sqlite3',
-        }
+        'default': dj_database_url.config(
+        default=config('DATABASE_URL', default=f'sqlite:///{BASE_DIR / "db.sqlite3"}')
+    )
     }
 
 # ─── CORS ────────────────────────────────────────────────────────────────────
