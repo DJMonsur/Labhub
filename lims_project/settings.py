@@ -26,7 +26,7 @@ SECRET_KEY = config(
     'DJANGO_SECRET_KEY',
     default='django-insecure-pshs-carc-lims-change-before-production',
 )
-DEBUG = config('DJANGO_DEBUG', default=True, cast=bool)
+DEBUG = config('DJANGO_DEBUG', default=False, cast=bool)
 ALLOWED_HOSTS = config('DJANGO_ALLOWED_HOSTS', default='*', cast=Csv())
 
 # ─── APPLICATIONS ────────────────────────────────────────────────────────────
