@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'dashboard.css' %}?v=12">
+  <link rel="stylesheet" href="{% static 'dashboard.css' %}?v=14">
   <script>
     // Set theme before first paint so the page doesn't flash the wrong scheme.
     (function () {
@@ -123,6 +123,7 @@
   <button class="tab-btn active" data-tab="requests"  onclick="switchTab('requests')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-list"/></svg> Requests</button>
   <button class="tab-btn"        data-tab="inventory" onclick="switchTab('inventory')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Inventory</button>
   <button class="tab-btn"        data-tab="schedule"  onclick="switchTab('schedule')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-calendar"/></svg> Schedule</button>
+  <button class="tab-btn"        data-tab="reports"   onclick="switchTab('reports')"><svg class="ico" viewBox="0 0 24 24"><use href="#i-note"/></svg> Reports</button>
   <button class="tab-btn"        data-tab="diagnostics" onclick="switchTab('diagnostics')" id="tab-btn-diagnostics" style="display:none;"><svg class="ico" viewBox="0 0 24 24"><use href="#i-tool"/></svg> Diagnostics</button>
 </nav>
 
@@ -135,6 +136,7 @@
       <option value="">All Requests</option>
       <option value="pending"  selected>Pending</option>
       <option value="approved">Approved</option>
+      <option value="borrowed">Borrowed / Out now</option>
       <option value="returned">Returned</option>
       <option value="rejected">Rejected</option>
       <option value="cancelled">Cancelled</option>
@@ -197,6 +199,25 @@
     <div class="gantt-scroll" id="gantt-container">
       <div class="gantt-empty">Loading schedule…</div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- TAB: REPORTS                                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="tab-panel" id="tab-reports">
+  <div class="panel-toolbar reports-toolbar">
+    <div class="report-quickpicks">
+      <button class="btn btn-primary btn-sm" onclick="generateReport('weekly')">Generate Weekly</button>
+      <button class="btn btn-secondary btn-sm" onclick="generateReport('daily')">Daily</button>
+      <button class="btn btn-secondary btn-sm" onclick="generateReport('monthly')">Monthly</button>
+      <button class="btn btn-secondary btn-sm" onclick="generateReport('yearly')">Yearly</button>
+    </div>
+    <div class="toolbar-spacer"></div>
+    <button class="btn btn-secondary" onclick="openCustomReportModal()">Custom Range</button>
+  </div>
+  <div id="reports-list" class="reports-list">
+    <div class="empty-state"><div class="empty-icon"></div>Loading reports…</div>
   </div>
 </div>
 
@@ -368,6 +389,78 @@
 </div>
 
 
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: CUSTOM REPORT                                                       -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="custom-report-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Custom Report</h2>
+      <button class="modal-close" onclick="closeCustomReportModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-row">
+        <div class="field">
+          <label>Start Date <span class="req">*</span></label>
+          <input id="cr-start" type="date">
+        </div>
+        <div class="field">
+          <label>End Date <span class="req">*</span></label>
+          <input id="cr-end" type="date">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeCustomReportModal()">Cancel</button>
+      <button class="btn btn-primary"   onclick="saveCustomReport()">Generate Report</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: VIEW REPORT                                                         -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="view-report-modal">
+  <div class="modal modal-wide modal-report">
+    <div class="modal-header">
+      <h2 id="vr-title">Report</h2>
+      <button class="modal-close" onclick="closeViewReportModal()">×</button>
+    </div>
+    <div class="modal-body" id="vr-body">
+      <div class="empty-state">Loading…</div>
+    </div>
+    <div class="modal-footer">
+      <div class="report-export-btns">
+        <button class="btn btn-secondary" onclick="exportReport('csv')">Download CSV</button>
+        <button class="btn btn-secondary" onclick="exportReport('html')">Download HTML</button>
+      </div>
+      <div class="toolbar-spacer"></div>
+      <button class="btn btn-primary" onclick="closeViewReportModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL: RETURN ITEM CONDITIONS                                              -->
+<!-- ══════════════════════════════════════════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="return-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h2 id="rm-title">Mark Returned</h2>
+      <button class="modal-close" onclick="closeReturnModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <p class="return-hint">Flag any item that came back missing or damaged. Missing/damaged items are not restored to stock.</p>
+      <div id="rm-items-list" class="return-items-list"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeReturnModal()">Cancel</button>
+      <button class="btn btn-success"   onclick="confirmReturn()">Mark Returned</button>
+    </div>
+  </div>
+</div>
+
+
 <!-- ── TOAST ────────────────────────────────────────────────────────────────── -->
 <div id="toast" class="toast hidden"></div>
 
@@ -382,10 +475,14 @@ let allRequests  = [];   // from GET /api/dashboard/requests/
 let itemTypes    = [];   // from GET /api/dashboard/item-types/
 let locations    = [];   // from GET /api/dashboard/locations/
 let scheduleData = null; // from GET /api/dashboard/schedule/
+let allReports   = [];   // from GET /api/dashboard/reports/
 let currentTab   = 'requests';
 let schedYear, schedMonth;
 let editingItemId    = null;  // null = new item, int = editing existing
 let manualItemRows   = [];    // [{item_id, qty}, …] for manual-modal
+let returnReqId      = null;  // id of request being marked returned
+let returnConditions = {};    // item_id -> {condition, quantity}
+let viewReportId     = null;  // id of currently-viewed report
 
 /* ─── INIT ───────────────────────────────────────────────────────────────── */
 async function init() {
@@ -408,6 +505,7 @@ function switchTab(name) {
     p.classList.toggle('active', p.id === 'tab-' + name)
   );
   if (name === 'schedule') loadSchedule();
+  if (name === 'reports') loadReports();
   if (name === 'diagnostics') loadDiagnostics();
 }
 
@@ -496,12 +594,13 @@ function buildRequestCard(req) {
   const notes  = req.notes ? `<div class="card-notes">"${escHtml(req.notes)}"</div>` : '';
 
   const itemRows = req.items.map(it => {
+    const unit = it.unit || 'pcs';
     const avCls = it.available === 0 ? 'avail-bad'
                 : it.available < it.quantity ? 'avail-warn' : 'avail-ok';
     return `<div class="card-item-row">
       <span>${escHtml(it.item_name)}</span>
-      <span class="card-item-qty">×${it.quantity}</span>
-      <span class="${avCls}">${it.available} avail.</span>
+      <span class="card-item-qty">×${fmtQty(it.quantity)}${fmtUnit(unit)}</span>
+      <span class="${avCls}">${fmtQty(it.available)}${fmtUnit(unit)} avail.</span>
     </div>`;
   }).join('');
 
@@ -546,11 +645,18 @@ function buildCardActions(req) {
         onclick="patchRequest(${req.id},{status:'approved'})">Approve</button>`;
   }
   if (req.status === 'approved') {
+    // Approval only reserves stock; the physical hand-off happens here, which
+    // moves the item off the shelf (decrements available_count).
     return `
       <button class="btn btn-warn btn-sm"
         onclick="patchRequest(${req.id},{status:'cancelled'})">Cancel</button>
       <button class="btn btn-success btn-sm"
-        onclick="patchRequest(${req.id},{status:'returned'})"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Mark returned</button>`;
+        onclick="patchRequest(${req.id},{status:'borrowed'})"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Mark borrowed</button>`;
+  }
+  if (req.status === 'borrowed') {
+    return `
+      <button class="btn btn-success btn-sm"
+        onclick="openReturnModal(${req.id})"><svg class="ico" viewBox="0 0 24 24"><use href="#i-box"/></svg> Mark returned</button>`;
   }
   return '';
 }
@@ -660,6 +766,7 @@ function filterInventory() {
       </td>
       <td class="col-actions">
         <button class="btn btn-secondary btn-sm" onclick="openItemModal(${item.id})">Edit</button>
+        <button class="btn btn-secondary btn-sm" onclick="restockItem(${item.id}, '${escAttr(item.name)}')">Restock</button>
         <button class="btn btn-danger btn-sm"    onclick="deleteItem(${item.id}, '${escAttr(item.name)}')">Delete</button>
       </td>
     </tr>`;
@@ -788,6 +895,24 @@ async function deleteItem(id, name) {
   } catch (e) { toast('Network error.', 'error'); }
 }
 
+async function restockItem(id, name) {
+  const qty = prompt(`Restock "${name}"\n\nEnter how many to add:`);
+  if (qty === null) return;
+  const n = parseInt(qty, 10);
+  if (!n || n < 1) { toast('Enter a positive number.', 'warn'); return; }
+  try {
+    const res = await fetch(`/api/dashboard/items/${id}/restock/`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ quantity: n }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Restock failed.', 'error'); return; }
+    toast(`Restocked ${n} unit(s).`, 'success');
+    await loadItems();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
 /* ─── SCHEDULE / GANTT ───────────────────────────────────────────────────── */
 function changeMonth(delta) {
   schedMonth += delta;
@@ -891,6 +1016,265 @@ function renderTimeline(data) {
     ${rowsHtml}`;
 }
 
+/* ─── REPORTS TAB ────────────────────────────────────────────────────────── */
+async function loadReports() {
+  const container = document.getElementById('reports-list');
+  try {
+    const res = await fetch('/api/dashboard/reports/');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    allReports = data;
+    renderReports();
+  } catch (e) {
+    container.innerHTML = `<div class="empty-state">Could not load reports.</div>`;
+    toast('Failed to load reports.', 'error');
+  }
+}
+
+function renderReports() {
+  const container = document.getElementById('reports-list');
+  if (!allReports.length) {
+    container.innerHTML = `<div class="empty-state">
+      <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><use href="#i-note"/></svg></div>
+      No reports yet. Generate one to get started.</div>`;
+    return;
+  }
+  container.innerHTML = allReports.map(r => `
+    <div class="report-card">
+      <div class="report-card-main">
+        <div class="report-title">${escHtml(r.title)}</div>
+        <div class="report-meta">
+          <span class="flag-pill on">${escHtml(r.report_type)}</span>
+          <span>${fmtDate(r.start_date)} → ${fmtDate(r.end_date)}</span>
+          <span>Generated ${fmtDateTime(r.generated_at)}</span>
+        </div>
+      </div>
+      <div class="report-card-actions">
+        <button class="btn btn-primary btn-sm" onclick="viewReport(${r.id})">View</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportReport(${r.id},'csv')">CSV</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportReport(${r.id},'html')">HTML</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteReport(${r.id}, '${escAttr(r.title)}')">Delete</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+const REPORT_LABELS = { weekly: 'Weekly', daily: 'Daily', monthly: 'Monthly', yearly: 'Yearly', custom: 'Custom' };
+
+async function generateReport(type) {
+  const label = REPORT_LABELS[type] || type;
+  if (!confirm(`Create a ${label} Report?`)) return;
+  toast(`Generating ${label.toLowerCase()} report…`, 'warn');
+  try {
+    const res = await fetch('/api/dashboard/reports/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ report_type: type }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Could not generate report.', 'error'); return; }
+    toast('Report generated.', 'success');
+    await loadReports();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+function openCustomReportModal() {
+  const today = new Date();
+  const start = new Date(today.getFullYear(), today.getMonth(), 1);
+  document.getElementById('cr-start').value = start.toISOString().slice(0, 10);
+  document.getElementById('cr-end').value = today.toISOString().slice(0, 10);
+  document.getElementById('custom-report-modal').classList.remove('hidden');
+}
+
+function closeCustomReportModal() {
+  document.getElementById('custom-report-modal').classList.add('hidden');
+}
+
+async function saveCustomReport() {
+  const start = document.getElementById('cr-start').value;
+  const end   = document.getElementById('cr-end').value;
+  if (!start || !end) { toast('Both dates are required.', 'warn'); return; }
+  if (!confirm('Create a Custom Report?')) return;
+  try {
+    const res = await fetch('/api/dashboard/reports/', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ report_type: 'custom', start_date: start, end_date: end }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Could not generate report.', 'error'); return; }
+    closeCustomReportModal();
+    toast('Report generated.', 'success');
+    await loadReports();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+let _viewReportData = null;
+async function viewReport(id) {
+  viewReportId = id;
+  document.getElementById('view-report-modal').classList.remove('hidden');
+  document.getElementById('vr-title').textContent = 'Report';
+  document.getElementById('vr-body').innerHTML = '<div class="empty-state">Loading…</div>';
+  try {
+    const res = await fetch(`/api/dashboard/reports/${id}/`);
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+    _viewReportData = json;
+    renderReportView(json);
+  } catch (e) {
+    document.getElementById('vr-body').innerHTML = `<div class="empty-state">Could not load report.</div>`;
+  }
+}
+
+function renderReportView(r) {
+  document.getElementById('vr-title').textContent = r.title;
+  const data = r.data || {};
+
+  const section = (label, rows, qtyKey) => {
+    const qty = (data.totals || {})[qtyKey] || 0;
+    if (!rows || !rows.length) {
+      return `<div class="report-section">
+        <div class="report-section-head">${label} <span class="muted">(${qty})</span></div>
+        <div class="report-section-empty">No ${label.toLowerCase()} items in this period.</div>
+      </div>`;
+    }
+    const rowsHtml = rows.map(row => `
+      <div class="report-row">
+        <span class="report-row-name">${escHtml(row.item_name)}</span>
+        <span class="report-row-cat">${escHtml(row.category)}</span>
+        <span class="report-row-qty">${row.quantity}</span>
+      </div>`).join('');
+    return `<div class="report-section">
+      <div class="report-section-head">${label} <span class="muted">(${qty})</span></div>
+      <div class="report-table">
+        <div class="report-row report-row-head">
+          <span>Item</span><span>Category</span><span>Qty</span>
+        </div>
+        ${rowsHtml}
+      </div>
+    </div>`;
+  };
+
+  document.getElementById('vr-body').innerHTML = `
+    <div class="report-period">${fmtDate(r.start_date)} → ${fmtDate(r.end_date)} ·
+      <span class="flag-pill on">${escHtml(r.report_type)}</span></div>
+    ${section('Borrowed', data.summary && data.summary.borrowed, 'borrowed_qty')}
+    ${section('Missing',  data.summary && data.summary.missing,  'missing_qty')}
+    ${section('Damaged',  data.summary && data.summary.damaged,  'damaged_qty')}
+    ${section('Added',    data.summary && data.summary.added,    'added_qty')}
+  `;
+}
+
+function closeViewReportModal() {
+  document.getElementById('view-report-modal').classList.add('hidden');
+  viewReportId = null;
+  _viewReportData = null;
+}
+
+function exportReport(id, format) {
+  window.location.href = `/api/dashboard/reports/${id}/export/?format=${format}`;
+}
+
+async function deleteReport(id, title) {
+  if (!confirm(`Delete "${title}"?\n\nThis cannot be undone.`)) return;
+  try {
+    const res  = await fetch(`/api/dashboard/reports/${id}/`, { method: 'DELETE' });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Could not delete report.', 'error'); return; }
+    toast('Report deleted.', 'success');
+    if (viewReportId === id) closeViewReportModal();
+    await loadReports();
+  } catch (e) { toast('Network error.', 'error'); }
+}
+
+/* ─── RETURN MODAL (flag missing/damaged items) ──────────────────────────── */
+function openReturnModal(reqId) {
+  const req = allRequests.find(r => r.id === reqId);
+  if (!req) return;
+  returnReqId = reqId;
+  returnConditions = {};
+  req.items.forEach(it => {
+    const qty = it.quantity || 1;
+    returnConditions[it.item_id] = { condition: 'ok', quantity: qty };
+  });
+
+  document.getElementById('rm-title').textContent = `Return ${req.ref}`;
+  const list = document.getElementById('rm-items-list');
+  list.innerHTML = req.items.map(it => {
+    const qty  = it.quantity || 1;
+    const unit = it.unit || 'pcs';
+    return `
+    <div class="return-item-row">
+      <div class="return-item-name">
+        <strong>${escHtml(it.item_name)}</strong>
+        <span class="muted">×${fmtQty(qty)}${fmtUnit(unit)}</span>
+      </div>
+      <div class="return-item-status">
+        <label class="radio-label"><input type="radio" name="status-${it.item_id}"
+          value="ok" checked onclick="setReturnCond(${it.item_id},'ok')"> OK</label>
+        <label class="radio-label"><input type="radio" name="status-${it.item_id}"
+          value="missing" onclick="setReturnCond(${it.item_id},'missing')"> Missing</label>
+        <label class="radio-label"><input type="radio" name="status-${it.item_id}"
+          value="damaged" onclick="setReturnCond(${it.item_id},'damaged')"> Damaged</label>
+        <input type="number" class="return-qty" id="rc-qty-${it.item_id}" min="1" max="${qty}"
+          value="${fmtQty(qty)}" step="any" disabled
+          oninput="setReturnQty(${it.item_id}, parseFloat(this.value)||0)">
+        <span class="muted">${unit}</span>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('return-modal').classList.remove('hidden');
+}
+
+function setReturnCond(itemId, cond) {
+  const rec = returnConditions[itemId];
+  if (!rec) return;
+  rec.condition = cond;
+  const input = document.getElementById('rc-qty-' + itemId);
+  if (input) {
+    input.disabled = (cond === 'ok');
+    if (cond !== 'ok') input.value = input.max;
+  }
+}
+
+function setReturnQty(itemId, val) {
+  const rec = returnConditions[itemId];
+  if (!rec) return;
+  const input = document.getElementById('rc-qty-' + itemId);
+  const max = input ? parseFloat(input.max) : rec.quantity;
+  rec.quantity = Math.min(Math.max(val, 0), max);
+}
+
+function closeReturnModal() {
+  document.getElementById('return-modal').classList.add('hidden');
+  returnReqId = null;
+  returnConditions = {};
+}
+
+async function confirmReturn() {
+  if (!returnReqId) return;
+  const item_statuses = [];
+  Object.entries(returnConditions).forEach(([item_id, rec]) => {
+    if (rec.condition !== 'ok' && rec.quantity > 0) {
+      item_statuses.push({
+        item_id: parseInt(item_id), condition: rec.condition, quantity: rec.quantity,
+      });
+    }
+  });
+  try {
+    const res = await fetch(`/api/dashboard/requests/${returnReqId}/`, {
+      method: 'PATCH',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ status: 'returned', item_statuses }),
+    });
+    const json = await res.json();
+    if (!res.ok) { toast(json.error || 'Could not mark returned.', 'error'); return; }
+    closeReturnModal();
+    toast('Marked returned.', 'success');
+    await refreshAll();
+  } catch (e) { toast('Network error.', 'error'); }
+}
 /* ─── MANUAL ENTRY MODAL ─────────────────────────────────────────────────── */
 function openManualModal() {
   manualItemRows = [{ item_id: '', qty: 1 }];
@@ -929,7 +1313,7 @@ function renderManualItemRows() {
   const optionsHtml = '<option value="">— Select item —</option>' +
     allItems
       .filter(i => i.is_visible)
-      .map(i => `<option value="${i.id}">${escHtml(i.name)} (${i.available_count} avail.)</option>`)
+      .map(i => `<option value="${i.id}">${escHtml(i.name)} (${fmtQty(i.available_count)}${fmtUnit(i.unit)} avail.)</option>`)
       .join('');
 
   container.innerHTML = manualItemRows.map((row, idx) => {
@@ -941,8 +1325,8 @@ function renderManualItemRows() {
           `value="${row.item_id}" selected`
         )}
       </select>
-      <input type="number" min="1" value="${row.qty}"
-        oninput="manualItemRows[${idx}].qty=parseInt(this.value)||1">
+      <input type="number" min="1" step="any" value="${fmtQty(row.qty)}"
+        oninput="manualItemRows[${idx}].qty=parseFloat(this.value)||1">
       <span class="avail-hint" id="mm-avail-${idx}">—</span>
       <button class="remove-row-btn" onclick="removeManualItemRow(${idx})">×</button>
     </div>`;
@@ -958,7 +1342,8 @@ function updateManualAvail(idx, itemId) {
   const hint = document.getElementById(`mm-avail-${idx}`);
   if (!hint) return;
   const item = allItems.find(i => i.id === parseInt(itemId));
-  hint.textContent = item ? item.available_count + ' avail.' : '—';
+  hint.textContent = item
+    ? `${fmtQty(item.available_count)}${fmtUnit(item.unit)} avail.` : '—';
   hint.style.color = item && item.available_count === 0 ? 'var(--danger)' : 'var(--muted)';
 }
 
@@ -1006,6 +1391,12 @@ async function saveManualEntry() {
 }
 
 /* ─── UTILITY ────────────────────────────────────────────────────────────── */
+function fmtQty(n) {
+  if (n == null || isNaN(n)) return String(n == null ? '—' : n);
+  return String(+Number(n).toFixed(3));
+}
+function fmtUnit(u) { return u ? ` ${u}` : ''; }
+
 function fmtDate(isoStr) {
   if (!isoStr) return '—';
   const d = new Date(isoStr);
@@ -1044,6 +1435,9 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     closeItemModal();
     closeManualModal();
+    closeCustomReportModal();
+    closeViewReportModal();
+    closeReturnModal();
   }
 });
 

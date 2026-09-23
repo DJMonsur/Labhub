@@ -228,6 +228,14 @@ header {
 :root[data-theme="light"] .theme-btn .i-moon { transform: rotate(-70deg) scale(.4); opacity: 0; }
 :root[data-theme="dark"]  .theme-btn .i-sun  { transform: rotate(70deg) scale(.4);  opacity: 0; }
 
+/* Layout toggle (list ↔ cards) */
+.cat-toggle { padding: 7px 10px; }
+.cat-toggle .cat-ico { display: flex; align-items: center; }
+.cat-toggle:not(.is-card) .layout-ico-grid { display: none; }
+.cat-toggle.is-card .layout-ico-list  { display: none; }
+.cat-toggle.is-list  .layout-ico-grid { display: none; }
+.cat-toggle .cat-lbl { font-variant-numeric: tabular-nums; }
+
 /* ── STATUS STRIP ──────────────────────────────────────────────────────── */
 .strip {
   display: flex;
@@ -419,6 +427,74 @@ main {
 }
 @keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
 
+/* ════════════════════════════════════════════════════════════════════════
+   THE CARDS — alternate layout toggled from the header (remembered)
+   ════════════════════════════════════════════════════════════════════════ */
+#inventory-grid[data-layout="card"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 12px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  overflow: visible;
+}
+#inventory-grid[data-layout="card"] .grid-item {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  min-height: 138px;
+  padding: 15px 16px 16px;
+  border: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--lift-1);
+  text-align: left;
+  transition: transform .15s, box-shadow .15s, background .12s;
+}
+#inventory-grid[data-layout="card"] .grid-item:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--lift-2);
+}
+#inventory-grid[data-layout="card"] .grid-item:last-child { border-bottom: 1px solid var(--line); }
+#inventory-grid[data-layout="card"] .card-ico {
+  display: flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  font-size: 1.15rem;
+}
+#inventory-grid[data-layout="card"] .grid-item.is-out .card-ico {
+  filter: grayscale(1); opacity: .55;
+}
+#inventory-grid[data-layout="card"] .row-graph { margin-top: auto; }
+#inventory-grid[data-layout="card"] .grid-item-avail { text-align: left; }
+#inventory-grid[data-layout="card"] .skel {
+  display: flex; flex-direction: column; gap: 10px;
+  min-height: 138px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
+
+/* ── DATE-CONFLICT BANNER (borrow form) ─────────────────────────────── */
+.conflict-banner {
+  display: block;
+  padding: 8px 12px;
+  margin: 10px 0 2px;
+  border-radius: var(--r-sm);
+  font-size: .78rem;
+  font-weight: 500;
+}
+.conflict-banner[hidden] { display: none; }
+.conflict-banner.ok   { background: rgba(25,141,82,.12);  color: var(--ok); }
+.conflict-banner.ok:before { content: "✓ "; }
+.conflict-banner.conflict { background: var(--bad-soft, rgba(214,69,69,.12)); color: var(--bad); }
+.conflict-banner.pending { background: rgba(214,143,27,.14); color: var(--warn); }
+.conflict-banner.pending:before { content: "⚠ "; }
+
 /* ── EMPTY / ERROR ─────────────────────────────────────────────────────── */
 .no-results {
   display: flex; flex-direction: column; align-items: center; gap: 7px;
@@ -523,6 +599,17 @@ input[type=number] { -moz-appearance: textfield; }
   font-family: var(--f-mono); font-size: .88rem; font-weight: 600;
 }
 .qty-input:focus { outline: none; background: var(--accent-soft); }
+.qty-unit {
+  height: 36px; min-width: 52px;
+  border: none; border-right: 1px solid var(--line);
+  background: var(--frost); color: var(--text);
+  padding: 0 6px;
+  font-family: var(--f); font-size: .8rem; font-weight: 500;
+  cursor: pointer; appearance: auto;
+}
+.qty-unit:focus { outline: none; background: var(--accent-soft); }
+.qty-hint { font-size: .74rem; color: var(--text-dim); margin-top: 4px; min-height: 16px; }
+.qty-hint strong { color: var(--text-mid); font-weight: 600; }
 .qty-error { font-size: .74rem; color: var(--bad); min-height: 16px; margin-top: 4px; }
 
 .action-buttons { display: flex; gap: 8px; height: 42px; }

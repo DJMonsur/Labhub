@@ -98,7 +98,10 @@ class Item(models.Model):
                            db_column='type_id',
                            related_name='items',
                        )
-    item_count       = models.IntegerField(default=0)
+    # Decimal so mass/volume items can be tracked and borrowed fractionally
+    # (e.g. 1.5 kg). Greatly exceeds the largest count the lab will ever need
+    # while leaving room for fractional units.
+    item_count       = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     unit             = models.CharField(max_length=20, null=True, blank=True)
     item_description = models.TextField(null=True, blank=True)
     is_borrowable    = models.BooleanField(default=True)
@@ -126,7 +129,7 @@ class InventoryRecord(models.Model):
                           on_delete=models.RESTRICT,
                           db_column='location_id',
                       )
-    available_count = models.IntegerField(default=0)
+    available_count = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     last_updated    = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -166,7 +169,7 @@ class BorrowRecord(models.Model):
                             on_delete=models.RESTRICT,
                             db_column='location_id',
                         )
-    quantity_borrowed = models.IntegerField(default=1)
+    quantity_borrowed = models.DecimalField(max_digits=12, decimal_places=3, default=1)
     status            = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     borrow_date       = models.DateTimeField(null=True, blank=True)
     return_date       = models.DateTimeField(null=True, blank=True)
@@ -217,6 +220,7 @@ class BorrowRequest(models.Model):
     STATUS_CHOICES = [
         ('pending',   'Pending'),
         ('approved',  'Approved'),
+        ('borrowed',  'Borrowed'),   # ← handed out; stock deducted at this point
         ('rejected',  'Rejected'),
         ('returned',  'Returned'),   # ← added; lab personnel marks items back
         ('cancelled', 'Cancelled'),
@@ -248,6 +252,11 @@ class BorrowRequest(models.Model):
 
 
 class BorrowRequestItem(models.Model):
+    ITEM_STATUS_CHOICES = [
+        ('ok',      'OK'),
+        ('missing', 'Missing'),
+        ('damaged', 'Damaged'),
+    ]
     borrow_request = models.ForeignKey(
                          BorrowRequest,
                          on_delete=models.CASCADE,
@@ -258,7 +267,22 @@ class BorrowRequestItem(models.Model):
                          on_delete=models.RESTRICT,
                          db_column='item_id',
                      )
-    quantity       = models.IntegerField()
+    quantity       = models.DecimalField(max_digits=12, decimal_places=3)
+    # Condition when the request is marked returned. Set by lab personnel
+    # at return time. 'missing'/'damaged' items are not restored to stock.
+    item_status    = models.CharField(
+                         max_length=10,
+                         choices=ITEM_STATUS_CHOICES,
+                         default='ok',
+                     )
+    # How many of the borrowed units came back missing / damaged. Allows a
+    # partial return (e.g. 2 of 5 missing), not just all-or-nothing.
+    missing_qty    = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    damaged_qty    = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    # When the item_status was last changed. Reports anchor missing/damaged
+    # entries on this timestamp so an item flagged today appears in today's
+    # report regardless of when it was borrowed (date_needed).
+    status_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = 'borrow_request_item'
@@ -268,3 +292,38 @@ class BorrowRequestItem(models.Model):
             f'{self.borrow_request.ref_number} — '
             f'{self.item.item_name} × {self.quantity}'
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  REPORT  (added for the Reports dashboard tab — Django-managed)
+#  Stores generated reports so they can be re-viewed and exported later.
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Report(models.Model):
+    REPORT_TYPE_CHOICES = [
+        ('weekly',   'Weekly'),
+        ('daily',    'Daily'),
+        ('monthly',  'Monthly'),
+        ('yearly',   'Yearly'),
+        ('custom',   'Custom'),
+    ]
+    report_type  = models.CharField(max_length=10, choices=REPORT_TYPE_CHOICES)
+    title        = models.CharField(max_length=200)
+    start_date   = models.DateField()
+    end_date     = models.DateField()
+    data         = models.JSONField(default=dict)
+    created_by   = models.ForeignKey(
+                       User,
+                       on_delete=models.SET_NULL,
+                       null=True,
+                       blank=True,
+                       related_name='reports',
+                   )
+    generated_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = 'report'
+        ordering = ['-generated_at']
+
+    def __str__(self):
+        return f'{self.title} ({self.start_date} → {self.end_date})'

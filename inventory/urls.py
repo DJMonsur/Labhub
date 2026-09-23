@@ -14,10 +14,16 @@ urlpatterns = [
     # Items CRUD
     path('dashboard/items/',             dashboard_views.dashboard_items,       name='dash-items'),
     path('dashboard/items/<int:item_id>/', dashboard_views.dashboard_item_detail, name='dash-item-detail'),
+    path('dashboard/items/<int:item_id>/restock/', dashboard_views.dashboard_item_restock, name='dash-item-restock'),
 
     # Borrow requests
     path('dashboard/requests/',             dashboard_views.dashboard_requests,       name='dash-requests'),
     path('dashboard/requests/<int:req_id>/', dashboard_views.dashboard_request_detail, name='dash-request-detail'),
+
+    # Reports
+    path('dashboard/reports/',             dashboard_views.dashboard_reports,        name='dash-reports'),
+    path('dashboard/reports/<int:report_id>/', dashboard_views.dashboard_report_detail, name='dash-report-detail'),
+    path('dashboard/reports/<int:report_id>/export/', dashboard_views.dashboard_report_export, name='dash-report-export'),
 
     # Schedule / timeline
     path('dashboard/schedule/', dashboard_views.dashboard_schedule, name='dash-schedule'),

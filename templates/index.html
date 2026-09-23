@@ -33,6 +33,7 @@
       <g id="i-cart"><circle cx="9" cy="20" r="1.4"/><circle cx="18" cy="20" r="1.4"/><path d="M2 3h3l2.4 12h11.4l1.8-8H6.2"/></g>
       <g id="i-user"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></g>
       <g id="i-grid"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g>
+      <g id="i-list"><path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3.5 6h.01"/><path d="M3.5 12h.01"/><path d="M3.5 18h.01"/></g>
       <g id="i-gauge"><path d="M12 21a9 9 0 1 1 9-9"/><path d="M12 12l4.5-3"/></g>
       <g id="i-logout"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></g>
       <g id="i-back"><path d="M19 12H5"/><path d="M11 18l-6-6 6-6"/></g>
@@ -152,6 +153,17 @@
           <option value="plant">Plant biology</option>
           <option value="bacteria">Bacteria &amp; micro</option>
         </select>
+
+        <span class="rail-sep" role="presentation"></span>
+
+        <button class="cat cat-toggle" id="layout-btn" onclick="toggleLayout()"
+                title="Switch between list and card layout" aria-label="Toggle layout">
+          <span class="cat-ico">
+            <svg class="ico layout-ico-list" viewBox="0 0 24 24"><use href="#i-list"/></svg>
+            <svg class="ico layout-ico-grid" viewBox="0 0 24 24"><use href="#i-grid"/></svg>
+          </span>
+          <span class="cat-lbl" id="layout-lbl">Cards</span>
+        </button>
       </div>
     </nav>
 
@@ -199,7 +211,7 @@
               </div>
               <div class="stat-row">
                 <span class="stat-label">Unit</span>
-                <span class="stat-value" id="det-unit">—</span>
+                <span class="stat-value" id="det-unit-stat">—</span>
               </div>
               <div class="borrows-list" id="det-borrows-wrap">
                 <h4>Active Borrow Records</h4>
@@ -208,18 +220,21 @@
             </div>
             <div>
               <div class="qty-row">
-                <span class="qty-label">Qty to borrow:</span>
+                <label class="qty-label" for="det-unit">Qty to borrow</label>
                 <div class="qty-ctrl">
                   <button class="qty-btn" onclick="changeQty(-1)" aria-label="Decrease">
                     <svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14"/></svg>
                   </button>
                   <input class="qty-input" type="number" id="det-qty"
                          value="1" min="1" oninput="validateDetailQty()">
+                  <select class="qty-unit" id="det-unit" onchange="onUnitChange()"
+                          aria-label="Choose unit"></select>
                   <button class="qty-btn" onclick="changeQty(1)" aria-label="Increase">
                     <svg class="ico" viewBox="0 0 24 24"><use href="#i-plus"/></svg>
                   </button>
                 </div>
               </div>
+              <div class="qty-hint">Picked unit · <strong id="det-qty-unit">pcs</strong></div>
               <div class="qty-error" id="det-qty-error"></div>
               <div class="action-buttons" style="margin-top:12px">
                 <button class="btn-main" id="btn-add-cart" onclick="addToCart()">
@@ -302,13 +317,16 @@
             <div class="lab-row">
               <div class="lab-field lab-field-grow">
                 <span class="lab-label">Date/Time Needed:</span>
-                <input type="datetime-local" id="f-datetime" class="lab-input" onchange="clearErr(this)">
+                <input type="datetime-local" id="f-datetime" class="lab-input" onchange="clearErr(this); updateDateConflicts()">
               </div>
               <div class="lab-field lab-field-grow">
                 <span class="lab-label">Return Date:</span>
-                <input type="date" id="f-return" class="lab-input" onchange="clearErr(this)">
+                <input type="date" id="f-return" class="lab-input" onchange="clearErr(this); updateDateConflicts()">
               </div>
             </div>
+
+            <!-- Date-conflict status against already-approved bookings -->
+            <div id="date-conflict-banner" class="conflict-banner" hidden></div>
 
             <!-- ── MATERIALS TABLE ── -->
             <div class="lab-table-label">Materials / Equipment Needed:</div>
@@ -450,22 +468,51 @@
   // ═══════════════════════════════════════════════════════════════════════════
   let ITEMS = [];           // populated by loadInventory() from /api/inventory/
   let cart = [];
-  let currentItem  = null;
-  let currentGroup = null;
+  let currentItem   = null;
+  let currentGroup  = null;
+  let currentUnit   = null;     // unit currently chosen on the details page
+  let currentFactor = 1;        // factor to the item's stored unit
   let currentPrimaryType = 'all';
+  let layoutMode = 'list';
+
+  // Remember the preferred layout across visits.
+  (function loadLayoutPreference() {
+    try {
+      const saved = localStorage.getItem('labhub-layout');
+      if (saved === 'list' || saved === 'card') layoutMode = saved;
+    } catch (e) { /* ignore */ }
+  })();
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  UNIT HELPERS — everything is stored in the item's own unit (e.g. g); the
+  //  user picks the unit they want on the details page (g / kg / ...) and that
+  //  chosen unit+factor rides along inside the cart.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function fmtNum(n) {
+    if (n == null || isNaN(n)) return '0';
+    return String(+Number(n).toFixed(3));
+  }
+  // a *chosen-unit* quantity (in any family unit) → the item's stored unit
+  function toBase(q, factor) { return q * (factor || 1); }
+  // an item's stored-unit quantity → the chosen unit
+  function fromBase(b, factor) { return factor ? b / factor : b; }
+  function qtyLabel(b, factor, unit) { return `${fmtNum(fromBase(b, factor))} ${unit}`; }
 
   // ═══════════════════════════════════════════════════════════════════════════
   //  DATA LOADING  (replaces the old hardcoded ITEMS array)
   // ═══════════════════════════════════════════════════════════════════════════
   function showSkeleton() {
     const grid = document.getElementById('inventory-grid');
-    grid.innerHTML = Array.from({ length: 10 }, () =>
+    grid.innerHTML = Array.from({ length: isCardMode() ? 8 : 10 }, () =>
       `<div class="skel">
          <div class="skel-line"></div>
          <div class="skel-line"></div>
          <div class="skel-line short"></div>
        </div>`).join('');
+    grid.dataset.layout = layoutMode;
   }
+
+  function isCardMode() { return layoutMode === 'card'; }
 
   async function loadInventory() {
     showSkeleton();
@@ -516,6 +563,9 @@
           id:             item.id,
           type:           item.type,
           unit:           item.unit,
+          display_unit:   item.display_unit,
+          display_factor: item.display_factor,
+          icon:           item.icon,
           variants:       [],
           totalAvailable: 0,
         };
@@ -593,6 +643,7 @@
 
     // Build off-document, then attach once — one reflow instead of hundreds.
     const frag = document.createDocumentFragment();
+    const isCard = layoutMode === 'card';
 
     groupedItems.forEach((group, i) => {
       const totalGroupStock = group.variants.reduce((s, v) => s + v.total, 0);
@@ -600,12 +651,20 @@
       const state      = group.totalAvailable === 0 ? 'out' : pct <= 0.3 ? 'low' : '';
       const varCount   = group.variants.length;
 
+      const dfac  = group.display_factor || 1;
+      const dunit = group.display_unit || group.unit || 'pcs';
+      const availDisp = fmtNum(group.totalAvailable / dfac);
+      const totalDisp = fmtNum(totalGroupStock / dfac);
+
       const row = document.createElement('button');
       row.type = 'button';
       row.className = 'grid-item' + (state === 'out' ? ' is-out' : '');
       row.style.setProperty('--d', Math.min(i, 20) * 18 + 'ms');
 
+      const cardIcon = isCard ? `<span class="card-ico">${escHtml(group.icon || '🔬')}</span>` : '';
+
       row.innerHTML = `
+        ${cardIcon}
         <span class="grid-item-info">
           <span class="grid-item-name">${escHtml(group.baseName)}</span>
           <span class="row-sub">
@@ -622,7 +681,7 @@
         <span class="grid-item-avail ${state}">${
           group.totalAvailable === 0
             ? 'None left'
-            : `${group.totalAvailable} / ${totalGroupStock}`
+            : `${availDisp} / ${totalDisp} ${dunit}`
         }</span>`;
 
       row.onclick = () => openGroupDetails(group);
@@ -630,6 +689,7 @@
     });
 
     grid.replaceChildren(frag);
+    grid.dataset.layout = layoutMode;
   }
 
   function escHtml(s) {
@@ -656,6 +716,29 @@
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  //  LAYOUT TOGGLE  — list (bars) ↔ card grid, remembered per user
+  // ═══════════════════════════════════════════════════════════════════════════
+  function toggleLayout() {
+    layoutMode = layoutMode === 'card' ? 'list' : 'card';
+    try { localStorage.setItem('labhub-layout', layoutMode); } catch (e) {}
+    applyLayout();
+  }
+
+  function applyLayout() {
+    const grid = document.getElementById('inventory-grid');
+    const btn  = document.getElementById('layout-btn');
+    if (grid) grid.dataset.layout = layoutMode;
+    if (btn) {
+      btn.classList.toggle('is-list', layoutMode === 'list');
+      btn.classList.toggle('is-card', layoutMode === 'card');
+      btn.title = layoutMode === 'card' ? 'Switch to list layout' : 'Switch to card layout';
+    }
+    const lbl = document.getElementById('layout-lbl');
+    if (lbl) lbl.textContent = layoutMode === 'card' ? 'List' : 'Cards';
+    applyFilters();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   //  DETAILS PAGE  (unchanged from original)
   // ═══════════════════════════════════════════════════════════════════════════
   function openGroupDetails(group) {
@@ -670,7 +753,7 @@
     if (group.variants.length > 1) {
       variantWrap.style.display = 'block';
       variantSelect.innerHTML = group.variants.map((v, i) =>
-        `<option value="${i}">${v.variantName} (${v.available} ${v.unit} available)</option>`
+        `<option value="${i}">${v.variantName} (${fmtNum(v.available_display)} ${v.display_unit} available)</option>`
       ).join('');
     } else {
       variantWrap.style.display = 'none';
@@ -681,20 +764,78 @@
     navigateTo('page-details');
   }
 
+  function unitOptionsFor(item) {
+    return (item.unit_options && item.unit_options.length)
+      ? item.unit_options
+      : [{ unit: item.display_unit || item.unit || 'pcs', factor: item.display_factor || 1 }];
+  }
+
   function selectVariant(index) {
     if (!currentGroup) return;
     currentItem = currentGroup.variants[index];
+    const opts = unitOptionsFor(currentItem);
+    const sel  = document.getElementById('det-unit');
 
-    document.getElementById('det-total').textContent  = `${currentItem.total} ${currentItem.unit}`;
-    document.getElementById('det-unit').textContent   = currentItem.unit;
+    const inCart  = cart.find(c => c.item.id === currentItem.id);
+    let chosen;
+    if (inCart) {
+      chosen = { unit: inCart.unit, factor: inCart.factor };
+    } else {
+      chosen = opts.find(o => o.unit === currentItem.unit)     // stored unit is natural
+            || opts.find(o => o.unit === currentItem.display_unit)
+            || opts[0];
+    }
+    currentUnit   = chosen.unit;
+    currentFactor = chosen.factor;
+
+    sel.innerHTML = opts.map(o =>
+      `<option value="${o.unit}"${o.unit === currentUnit ? ' selected' : ''}>${o.unit}</option>`
+    ).join('');
+
+    renderDetailStats();
+
+    const qtyInput = document.getElementById('det-qty');
+    qtyInput.step = currentItem.qty_step || 1;
+    qtyInput.min  = 0.1;
+    qtyInput.value = inCart ? fmtNum(inCart.qty) : fmtNum(currentItem.qty_step || 1);
+    document.getElementById('det-qty-unit').textContent = currentUnit;
+    document.getElementById('det-qty-error').textContent = '';
+
+    updateDetailButtons();
+  }
+
+  function onUnitChange() {
+    if (!currentItem) return;
+    const opt = unitOptionsFor(currentItem)
+      .find(o => o.unit === document.getElementById('det-unit').value)
+      || unitOptionsFor(currentItem)[0];
+    if (opt.factor !== currentFactor) {
+      const input = document.getElementById('det-qty');
+      const v = parseFloat(input.value) || 0;
+      input.value = fmtNum(fromBase(toBase(v, currentFactor), opt.factor));
+    }
+    currentUnit   = opt.unit;
+    currentFactor = opt.factor;
+    document.getElementById('det-qty-unit').textContent = currentUnit;
+    renderDetailStats();
+    validateDetailQty();
+  }
+
+  function renderDetailStats() {
+    if (!currentItem) return;
+    const dunit = currentUnit || '';
+    document.getElementById('det-total').textContent =
+      `${fmtNum(fromBase(currentItem.total, currentFactor))} ${dunit}`;
+    document.getElementById('det-unit-stat').textContent = dunit;
 
     const availEl = document.getElementById('det-avail');
-    availEl.textContent = `${currentItem.available} ${currentItem.unit}`;
-    availEl.className   = 'stat-value ' +
-      (currentItem.available === 0 ? 'out' : currentItem.available <= 3 ? 'warn' : 'ok');
+    const avail = fromBase(currentItem.available, currentFactor);
+    availEl.textContent = `${fmtNum(avail)} ${dunit}`;
+    availEl.className = 'stat-value ' + (avail === 0 ? 'out' : avail <= 3 ? 'warn' : 'ok');
 
-    const borrowedCount = currentItem.total - currentItem.available;
-    document.getElementById('det-borrowed').textContent = `${borrowedCount} ${currentItem.unit}`;
+    const borrowed = currentItem.total - currentItem.available;
+    document.getElementById('det-borrowed').textContent =
+      `${fmtNum(fromBase(borrowed, currentFactor))} ${dunit}`;
 
     const wrap = document.getElementById('det-borrows-wrap');
     const list = document.getElementById('det-borrows');
@@ -702,48 +843,32 @@
       wrap.style.display = 'block';
       list.innerHTML = currentItem.borrows.map(b =>
         `<div class="borrow-row">
-           <span>${b.user} — ${b.qty} ${currentItem.unit}</span>
+           <span>${b.user} — ${fmtNum(fromBase(b.qty, currentFactor))} ${dunit}</span>
            <span>Due: ${b.due}</span>
          </div>`
       ).join('');
     } else {
       wrap.style.display = 'none';
     }
-
-    const qtyInput = document.getElementById('det-qty');
-    const inCart   = cart.find(c => c.item.id === currentItem.id);
-    qtyInput.value = inCart ? inCart.qty : 1;
-    qtyInput.max   = currentItem.available;
-    document.getElementById('det-qty-error').textContent = '';
-
-    updateDetailButtons();
   }
 
   function updateDetailButtons() {
     if (!currentItem) return;
     const btn       = document.getElementById('btn-add-cart');
     const removeBtn = document.getElementById('btn-remove-cart');
-    const qty       = parseInt(document.getElementById('det-qty').value) || 0;
+    const qty       = parseFloat(document.getElementById('det-qty').value) || 0;
     const inCart    = cart.find(c => c.item.id === currentItem.id);
 
-    if (currentItem.available === 0) {
-      btn.textContent = 'Out of stock';
-      btn.disabled    = true;
-      btn.className   = 'btn-main';
-      removeBtn.style.display = 'none';
-      return;
-    }
+    // An item can still be requested for non-overlapping dates even when
+    // nothing is on hand right now, so the button is never hard-disabled here.
+    const noHand = currentItem.available_display === 0;
+
     if (inCart) {
       removeBtn.style.display = '';
-      if (qty !== inCart.qty) {
-        btn.textContent = 'Update request';
-        btn.className   = 'btn-main btn-update';
-        btn.disabled    = false;
-      } else {
-        btn.textContent = 'In your request';
-        btn.className   = 'btn-main btn-added';
-        btn.disabled    = false;
-      }
+      const changed = fmtNum(qty) !== fmtNum(inCart.qty);
+      btn.textContent = changed ? 'Update request' : 'In your request';
+      btn.className   = 'btn-main ' + (changed ? 'btn-update' : 'btn-added');
+      btn.disabled    = false;
     } else {
       btn.textContent = 'Add to request';
       btn.className   = 'btn-main';
@@ -754,35 +879,45 @@
 
   function changeQty(delta) {
     const input = document.getElementById('det-qty');
-    let v = parseInt(input.value) || 1;
-    v = Math.max(1, Math.min(currentItem.available, v + delta));
-    input.value = v;
+    const step  = parseFloat(currentItem.qty_step || 1);
+    let v = parseFloat(input.value) || 0;
+    v = Math.max(0, Math.round((v + delta * step) / step) * step);
+    input.value = fmtNum(v);
     validateDetailQty();
   }
 
   function validateDetailQty() {
     if (!currentItem) return true;
-    const v     = parseInt(document.getElementById('det-qty').value) || 0;
+    const v     = parseFloat(document.getElementById('det-qty').value);
     const errEl = document.getElementById('det-qty-error');
-    if (v < 1) { errEl.textContent = 'Quantity must be at least 1.'; return false; }
-    if (v > currentItem.available) {
-      errEl.textContent = `Only ${currentItem.available} ${currentItem.unit} available.`;
+    if (isNaN(v) || v <= 0) {
+      errEl.textContent = 'Enter a quantity greater than 0.';
       return false;
     }
-    errEl.textContent = '';
+    const base = toBase(v, currentFactor);
+    if (base > currentItem.available) {
+      // On-hand shortfall is a warning, not a hard block: the item may still
+      // be bookable on non-overlapping dates.
+      errEl.textContent =
+        `Only ${fmtNum(fromBase(currentItem.available, currentFactor))} ${currentUnit || ''} on hand now — you can still request it for non-overlapping dates.`;
+    } else {
+      errEl.textContent = '';
+    }
     updateDetailButtons();
     return true;
   }
 
   function addToCart() {
     if (!validateDetailQty()) return;
-    const qty      = parseInt(document.getElementById('det-qty').value);
+    const qty      = parseFloat(document.getElementById('det-qty').value);
     const existing = cart.find(c => c.item.id === currentItem.id);
     if (existing) {
-      existing.qty = qty;
-      showToast(`Updated ${currentItem.name} → ${qty} ${currentItem.unit}`, 'success');
+      existing.qty    = qty;
+      existing.unit   = currentUnit;
+      existing.factor = currentFactor;
+      showToast(`Updated ${currentItem.name} → ${fmtNum(qty)} ${currentUnit}`, 'success');
     } else {
-      cart.push({ item: currentItem, qty });
+      cart.push({ item: currentItem, qty, unit: currentUnit, factor: currentFactor });
       showToast(`${currentItem.name} added to cart`, 'success');
     }
     updateCartBadge();
@@ -794,7 +929,7 @@
     if (idx === -1) return;
     cart.splice(idx, 1);
     updateCartBadge();
-    document.getElementById('det-qty').value = 1;
+    document.getElementById('det-qty').value = currentItem.qty_step || 1;
     showToast(`${currentItem.name} removed from cart`, '');
     updateDetailButtons();
   }
@@ -824,6 +959,8 @@
     if (cart.length === 0) {
       tbody.innerHTML = '';
       emptyMsg.style.display = 'block';
+      const banner = document.getElementById('date-conflict-banner');
+      if (banner) banner.hidden = true;
       return;
     }
     emptyMsg.style.display = 'none';
@@ -831,15 +968,110 @@
     tbody.innerHTML = cart.map((c, i) => `
       <tr>
         <td class="col-qty">
-          <input type="number" class="lab-input lab-input-cell" value="${c.qty}"
-                 id="cqty-${i}" min="1" max="${c.item.available}" oninput="validateCartQty(${i})">
-          <div class="field-error" style="font-size:8px" id="cerr-${i}"></div>
+          <div style="display:flex;align-items:center;gap:4px">
+            <input type="number" class="lab-input lab-input-cell" value="${c.qty}"
+                   id="cqty-${i}" min="${c.item.qty_step || 1}" step="${c.item.qty_step || 1}"
+                   oninput="validateCartQty(${i})">
+            <span class="lab-cell-text qty-err-holder">&nbsp;${escHtml(c.unit)}</span>
+            <div class="field-error" style="font-size:8px" id="cerr-${i}"></div>
+          </div>
         </td>
         <td><span class="lab-cell-text">${escHtml(c.item.name)}</span></td>
         <td><span class="lab-cell-text">${escHtml(c.item.type_label || c.item.type)}</span></td>
         <td class="col-remarks"><input type="text" class="lab-input lab-input-cell"></td>
         <td class="col-remarks"><input type="text" class="lab-input lab-input-cell"></td>
       </tr>`).join('');
+    updateDateConflicts();
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  //  DATE-AWARE CAPACITY  — a request may be approved even when it exceeds what
+  //  is on hand, as long as the requested dates don't overlap existing bookings.
+  //  Approved/borrowed reservations HOLD stock (hard limit); 'pending' ones only
+  //  get a warning since they haven't been reserved yet.
+  // ═══════════════════════════════════════════════════════════════════════════
+  function getRequestWindow() {
+    const dt  = document.getElementById('f-datetime').value;
+    const ret = document.getElementById('f-return').value;
+    return { start: dt ? dt.split('T')[0] : '', end: ret || '' };
+  }
+
+  function overlapsRange(r, win) {
+    if (!r || !win.start || !win.end) return false;
+    if (!r.date_needed || !r.return_date) return false;
+    // reservations use YYYY-MM-DD; overlapping = starts before our window ends
+    // AND ends on/after our window starts.
+    return r.return_date >= win.start && r.date_needed <= win.end;
+  }
+
+  // Blocks stock (must match the backend's ACTIVE_STATUSES):
+  const BINDING_STATUSES = ['approved', 'borrowed'];
+
+  function capacityFor(item, win, factor) {
+    let reservedBase = 0;
+    const refs = [];
+    (item.reservations || []).forEach(r => {
+      if (BINDING_STATUSES.includes(r.status) && overlapsRange(r, win)) {
+        reservedBase += r.qty;
+        if (r.ref) refs.push(r.ref);
+      }
+    });
+    const allowedBase = Math.max(0, (item.total || 0) - reservedBase);
+    const f = factor || 1;
+    return {
+      reservedBase, allowedBase, refs,
+      allowedDisp:  fmtNum(fromBase(allowedBase, f)),
+      reservedDisp: fmtNum(fromBase(reservedBase, f)),
+    };
+  }
+
+  function pendingFor(item, win) {
+    let pendingBase = 0;
+    const refs = [];
+    (item.pending_reservations || []).forEach(r => {
+      if (overlapsRange(r, win)) { pendingBase += r.qty; if (r.ref) refs.push(r.ref); }
+    });
+    return { pendingBase, refs };
+  }
+
+  function updateDateConflicts() {
+    const banner = document.getElementById('date-conflict-banner');
+    if (!banner) return;
+    if (cart.length === 0) { banner.hidden = true; return; }
+    const win = getRequestWindow();
+    if (!win.start || !win.end) { banner.hidden = true; return; }
+
+    let blocked = 0, warned = 0;
+    const blockNotes = [], warnNotes = [];
+    cart.forEach((c, i) => {
+      const cap = capacityFor(c.item, win, c.factor);
+      const pen = pendingFor(c.item, win);
+      const base = toBase(c.qty, c.factor);
+      let ok = validateCartQty(i);
+      if (!ok) { blocked++; blockNotes.push(`${c.item.name} (${c.unit})`); }
+      else if (pen.pendingBase > 0) {
+        warned++;
+        warnNotes.push(`pending ${pen.refs.join(', ') || 'request'} for ${c.item.name}`);
+      }
+      if (base > c.item.available) {
+        if (ok) { warned++; warnNotes.push(`${c.item.name} exceeds what is on hand now`); }
+      }
+    });
+
+    banner.hidden = false;
+    if (blocked) {
+      banner.className  = 'conflict-banner conflict';
+      banner.innerHTML =
+        `These items exceed what is still free on your selected dates: <strong>${blockNotes.join(', ')}</strong>. ` +
+        `Approved/returned bookings hold stock — reduce the quantity or pick different dates.`;
+    } else if (warned) {
+      banner.className  = 'conflict-banner pending';
+      banner.innerHTML =
+        `Your dates will work, but note: ${warnNotes.join('; ')}. Provisionally booked requests only reserve stock once approved.`;
+    } else {
+      banner.className  = 'conflict-banner ok';
+      banner.innerHTML  = 'Dates are clear — no overlap with already-approved bookings.';
+    }
   }
 
   const GROUP_NAME_DEFAULT_SLOTS = 5;
@@ -897,17 +1129,56 @@
   function validateCartQty(idx) {
     const input = document.getElementById(`cqty-${idx}`);
     const errEl = document.getElementById(`cerr-${idx}`);
-    const v     = parseInt(input.value) || 0;
-    const item  = cart[idx].item;
-    if (v < 1) {
-      input.classList.add('error'); errEl.textContent = 'Min 1'; return false;
+    const v     = parseFloat(input.value);
+    const c     = cart[idx];
+    const item  = c.item;
+    const factor = c.factor || 1;
+    const unit   = c.unit || item.display_unit;
+    const label  = () => `${fmtNum(v)} ${unit}`;
+
+    if (isNaN(v) || v <= 0) {
+      input.classList.add('error');
+      errEl.textContent = 'Min ' + (item.qty_step || 1);
+      return false;
     }
-    if (v > item.available) {
-      input.classList.add('error'); errEl.textContent = `Max ${item.available}`; return false;
+
+    const base = toBase(v, factor);
+    const win  = getRequestWindow();
+    const cap  = capacityFor(item, win, factor);
+    const pen  = pendingFor(item, win);
+
+    // Hard block: more requested than is still free on the chosen dates
+    // (physical total minus overlapping approved/borrowed bookings).
+    if (capsLockedWin(win)) {
+      input.classList.add('error');
+      if (base > cap.allowedBase) {
+        errEl.textContent = cap.refs.length
+          ? `Only ${cap.allowedDisp} ${unit} free on these dates — ${cap.reservedDisp} ${unit} is held by approved booking(s) ${cap.refs.map(r => '#' + r).join(', ')}.`
+          : `Only ${cap.allowedDisp} ${unit} available on these dates.`;
+        return false;
+      }
+      // Soft warning: exceeds current on-hand, but the chosen dates still have
+      // room because the approved bookings that hold stock are non-overlapping.
+      if (base > item.available) {
+        input.classList.add('error');
+        errEl.textContent =
+          `Only ${fmtNum(fromBase(item.available, factor))} ${unit} on hand now — your dates still have free capacity, so it may be approved.`;
+      } else {
+        input.classList.remove('error'); errEl.textContent = '';
+      }
+      if (pen.pendingBase > 0) {
+        errEl.textContent =
+          `Pending request ${pen.refs.map(r => '#' + r).join(', ')} overlaps your dates — it only holds stock once approved.`;
+        input.classList.remove('error');
+      }
     }
-    input.classList.remove('error'); errEl.textContent = '';
+
     cart[idx].qty = v;
     return true;
+  }
+
+  function capsLockedWin(win) {
+    return Boolean(win && win.start && win.end);
   }
 
   function removeFromCart(idx) {
@@ -1011,7 +1282,9 @@
       notes:         finalNotes,
       items: cart.map(c => ({
         item_id:  c.item.id,
-        quantity: c.qty,
+        // API stores quantities in the item's own stored unit; the form shows
+        // the user's chosen unit, so convert chosen → stored.
+        quantity: toBase(c.qty, c.factor),
       })),
     };
 
@@ -1038,7 +1311,7 @@
       const purpose      = payload.purpose;
       const dateNeeded   = payload.date_needed.replace('T', ' ');
       const returnDate   = payload.return_date;
-      const itemLines    = cart.map(c => `• ${c.item.name} × ${c.qty} ${c.item.unit}`).join('\n');
+      const itemLines = cart.map(c => `• ${c.item.name} × ${fmtNum(c.qty)} ${c.unit}`).join('\n');
 
       // Generate PDF before clearing the cart
       await downloadLabFormPDF(ref, cart);
@@ -1095,6 +1368,12 @@
       };
 
       const textWidth = (text, size) => font.widthOfTextAtSize(String(text || ''), size);
+
+      const fitFont = (text, size, maxW) => {
+        let s = size;
+        while (s > 4 && textWidth(text, s) > maxW) s -= 0.5;
+        return s;
+      };
 
       const wrapText = (text, size, maxWidth) => {
         const raw = String(text || '').trim();
@@ -1167,7 +1446,12 @@
       ];
 
       const buildRows = (fontSize, lineHeight, vPad) => items.map((c) => {
-        const qtyLines = wrapText(c.qty, fontSize, colTextMax[0]);
+        const qtyText = (c.qty == null || c.qty === '')
+          ? ''
+          : `${fmtNum(c.qty)} ${c.unit || c.item.display_unit || ''}`.trim();
+        // A number is never word-wrapped — it's fitted with fitFont instead so
+        // 0.75 kg shows in full (previously wrapText clipped it to "0.7").
+        const qtyLines = qtyText ? [qtyText] : [''];
         const nameLines = wrapText(c.item.name, fontSize, colTextMax[1]);
         const descLines = wrapText(c.item.type_label || c.item.type, fontSize, colTextMax[2]);
         const lineCount = Math.max(qtyLines.length, nameLines.length, descLines.length, 1);
@@ -1238,7 +1522,9 @@
 
         const textTop = yCursor + vPad + fontSize;
         row.qtyLines.forEach((line, i) => {
-          drawTxt(line, colXs[0] + textPad, textTop + i * lineHeight, fontSize);
+          // Right-align the quantity and shrink it until it fits one line.
+          const fs = fitFont(line, fontSize, colTextMax[0]);
+          drawTxt(line, colXs[1] - textPad - textWidth(line, fs), textTop + i * lineHeight, fs);
         });
         row.nameLines.forEach((line, i) => {
           drawTxt(line, colXs[1] + textPad, textTop + i * lineHeight, fontSize);
@@ -1452,6 +1738,7 @@
   document.getElementById('f-return').min   = today;
 
   // Fetch inventory from Django API (replaces the old hardcoded ITEMS array)
+  applyLayout();
   loadInventory();
   initGroupNameSlots();
 

@@ -26,6 +26,15 @@ Borrow requests
 
 Schedule (timeline source)
   GET  /api/dashboard/schedule/           ?year=YYYY&month=MM
+
+Reports
+  GET  /api/dashboard/reports/            list saved reports
+  POST /api/dashboard/reports/            generate (weekly/daily/monthly/yearly/custom)
+  GET  /api/dashboard/reports/<id>/       report detail + data
+  GET  /api/dashboard/reports/<id>/export/?format=csv|html
+
+Item restock
+  POST /api/dashboard/items/<id>/restock/ add stock + RESTOCK log
 """
 
 import json
@@ -34,11 +43,12 @@ import datetime
 import os
 import django
 from functools import wraps
+from decimal import Decimal, InvalidOperation
 
 from django.conf          import settings
 from django.db            import transaction
 from django.db.models     import F
-from django.http          import JsonResponse
+from django.http          import JsonResponse, HttpResponse
 from django.utils         import timezone as dj_timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -47,8 +57,12 @@ from .models import (
     Item, ItemType, Location,
     InventoryRecord,
     BorrowRequest, BorrowRequestItem,
-    InventoryLog, LimsUser,
+    InventoryLog, LimsUser, Report,
 )
+from .reports import (_period_for, generate_report_data,
+                      build_report_title, render_report_html, export_csv)
+from .availability import date_capacity
+from .units import normalize_unit
 def get_active_lims_user(request):
     """Return the legacy LIMS user matching the signed-in Django user."""
     if request.user.is_authenticated and request.user.email:
@@ -95,6 +109,38 @@ def _parse_body(request):
         return None, JsonResponse({'error': 'Invalid JSON body.'}, status=400)
 
 
+def _num(value):
+    """JSON-safe number: Decimal → plain float. Swallow quirks like '' or None."""
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _to_decimal(value, default=None):
+    """Coerce a request value (int / float / str) to a Decimal, or `default`."""
+    try:
+        if value is None or value == '':
+            return default
+        return Decimal(str(value)).quantize(Decimal('0.001'))
+    except (InvalidOperation, ValueError, TypeError):
+        return default
+
+
+def _parse_window(body):
+    """Extract date_needed (datetime) and return_date (date) from form data."""
+    from django.utils.dateparse import parse_datetime, parse_date
+    try:
+        date_needed = parse_datetime(body.get('date_needed'))
+    except Exception:
+        date_needed = None
+    try:
+        return_date = parse_date(body.get('return_date'))
+    except Exception:
+        return_date = None
+    return date_needed, return_date
+
+
 def _serialise_request(br):
     """Turn a BorrowRequest into a JSON-safe dict, including its items."""
     items_data = []
@@ -103,8 +149,12 @@ def _serialise_request(br):
         items_data.append({
             'item_id':   ri.item_id,
             'item_name': ri.item.item_name,
-            'quantity':  ri.quantity,
-            'available': rec.available_count if rec else 0,
+            'quantity':  _num(ri.quantity),
+            'unit':      (ri.item.unit or 'pcs'),
+            'available': _num(rec.available_count if rec else 0),
+            'item_status': ri.item_status,
+            'missing_qty': _num(ri.missing_qty),
+            'damaged_qty': _num(ri.damaged_qty),
         })
     return {
         'id':            br.pk,
@@ -181,12 +231,12 @@ def dashboard_items(request):
                 'type_id':        item.type_id,
                 'type_label':     item.type.type_label,
                 'category':       item.type.category,
-                'item_count':     item.item_count,
-                'unit':           item.unit or 'pcs',
+                'item_count':     _num(item.item_count),
+                'unit':           normalize_unit(item.unit) or 'pcs',
                 'description':    item.item_description or '',
                 'is_borrowable':  item.is_borrowable,
                 'is_visible':     item.is_visible,
-                'available_count': rec.available_count,
+                'available_count': _num(rec.available_count),
                 'location_id':    rec.location_id,
                 'location_name':  rec.location.location_name,
                 'record_id':      rec.record_id,
@@ -215,8 +265,8 @@ def dashboard_items(request):
         except Location.DoesNotExist:
             return JsonResponse({'error': 'Invalid location_id'}, status=400)
 
-        count = int(body.get('item_count', 0))
-        avail = int(body.get('available_count', count))
+        count = _to_decimal(body.get('item_count'), Decimal('0'))
+        avail = _to_decimal(body.get('available_count'), count)
 
         with transaction.atomic():
             item = Item(
@@ -272,7 +322,7 @@ def dashboard_item_detail(request, item_id):
             'name':          ('item_name',        str),
             'unit':          ('unit',              str),
             'description':   ('item_description', str),
-            'item_count':    ('item_count',        int),
+            'item_count':    ('item_count',        lambda v: _to_decimal(v, 0)),
             'is_borrowable': ('is_borrowable',     bool),
             'is_visible':    ('is_visible',        bool),
         }
@@ -281,7 +331,13 @@ def dashboard_item_detail(request, item_id):
         new_values = {}
         for key, (model_field, cast) in scalar_map.items():
             if key in body:
-                val = bool(body[key]) if cast is bool else cast(body[key])
+                if key == 'item_count':
+                    val = _to_decimal(body[key])
+                    if val is None:
+                        return JsonResponse(
+                            {'error': f'Invalid value for {key}.'}, status=400)
+                else:
+                    val = bool(body[key]) if cast is bool else cast(body[key])
                 old_val = getattr(item, model_field)
                 if old_val != val:
                     old_values[key] = old_val
@@ -304,7 +360,10 @@ def dashboard_item_detail(request, item_id):
         inv_record = InventoryRecord.objects.filter(item=item).first()
         inv_updates = {}
         if 'available_count' in body:
-            new_avail = int(body['available_count'])
+            new_avail = _to_decimal(body['available_count'])
+            if new_avail is None:
+                return JsonResponse(
+                    {'error': 'Invalid value for available_count.'}, status=400)
             if inv_record and inv_record.available_count != new_avail:
                 old_values['available_count'] = inv_record.available_count
                 new_values['available_count'] = new_avail
@@ -417,6 +476,11 @@ def dashboard_requests(request):
 
         with transaction.atomic():
             # Validate stock up-front before touching anything
+            dn, rd = _parse_window(body)
+            if dn is None or rd is None:
+                return JsonResponse(
+                    {'error': 'date_needed and return_date are required.'}, status=400)
+
             validated = []
             for entry in items_payload:
                 try:
@@ -427,22 +491,46 @@ def dashboard_requests(request):
                     return JsonResponse(
                         {'error': f'Item ID {entry["item_id"]} not found.'}, status=404
                     )
-                qty = int(entry.get('quantity', 1))
-                if qty < 1:
+                qty = _to_decimal(entry.get('quantity'))
+                if qty is None or qty <= 0:
                     return JsonResponse(
-                        {'error': 'Quantity must be at least 1.'}, status=400
+                        {'error': 'Quantity must be a positive number.'}, status=400
                     )
-                if rec.available_count < qty:
+                capacity = date_capacity(rec.item, dn, rd)
+                if qty > capacity:
+                    booked = Decimal(str(rec.item.item_count)) - capacity
                     return JsonResponse(
                         {
                             'error': (
-                                f'Not enough stock for "{rec.item.item_name}". '
-                                f'Available: {rec.available_count}'
+                                f'"{rec.item.item_name}" can\'t be borrowed for '
+                                f'those dates: {_num(booked)} {rec.item.unit or "pcs"} '
+                                f'of {_num(rec.item.item_count)} total are already '
+                                f'reserved in that window by approved/borrowed '
+                                f'requests, leaving only {_num(capacity)} '
+                                f'{rec.item.unit or "pcs"} free. Pick different '
+                                f'dates or reduce the quantity.'
                             )
                         },
                         status=409,
                     )
                 validated.append((rec, qty))
+
+            # Physical hand-off guard: never let on-hand drop below zero even
+            # if reservations/approvals for other windows already look fine.
+            for rec, qty in validated:
+                if rec.available_count < qty:
+                    return JsonResponse(
+                        {
+                            'error': (
+                                f'Not enough "{rec.item.item_name}" on hand right '
+                                f'now ({_num(rec.available_count)} '
+                                f'{rec.item.unit or "pcs"} available) to hand out '
+                                f'{_num(qty)} {rec.item.unit or "pcs"}. Restock '
+                                f'first or reduce the quantity.'
+                            )
+                        },
+                        status=409,
+                    )
 
             br = BorrowRequest.objects.create(
                 ref_number    = ref,
@@ -451,29 +539,37 @@ def dashboard_requests(request):
                 teacher_name  = body.get('teacher_name', '').strip(),
                 role          = body.get('role', 'Lab Personnel'),
                 purpose       = body.get('purpose', '').strip(),
-                date_needed   = body['date_needed'],
-                return_date   = body['return_date'],
+                date_needed   = (
+                    dj_timezone.make_aware(dn)
+                    if settings.USE_TZ and dj_timezone.is_naive(dn) else dn
+                ),
+                return_date   = rd,
                 notes         = body.get('notes', '').strip(),
-                status        = 'approved',   # manual entries are pre-approved
+                status        = 'borrowed',   # a manual entry is a real hand-off
             )
             BorrowRequestItem.objects.bulk_create([
                 BorrowRequestItem(borrow_request=br, item=rec.item, quantity=qty)
                 for rec, qty in validated
             ])
-            # Atomically decrement available counts and log BORROW
+            # Atomically deduct stock for the hand-off (never below zero), and log.
             active_user = get_active_lims_user(request)
             for rec, qty in validated:
-                InventoryRecord.objects.filter(pk=rec.pk).update(
-                    available_count=F('available_count') - qty
-                )
+                handed = InventoryRecord.objects.filter(
+                    pk=rec.pk, available_count__gte=qty
+                ).update(available_count=F('available_count') - qty)
+                if not handed:
+                    raise ValueError(
+                        f'Not enough "{rec.item.item_name}" on hand to hand out '
+                        f'{qty} {rec.item.unit or "pcs"} to {br.borrower_name}.'
+                    )
                 InventoryLog.objects.create(
                     user=active_user,
                     item=rec.item,
                     action_type='BORROW',
-                    new_value=f"Manual pre-approved borrow entry {br.ref_number} for {qty} {rec.item.unit} to {br.borrower_name}."
+                    new_value=f"Handed out {qty} {rec.item.unit} of \"{rec.item.item_name}\" to {br.borrower_name} (entry {br.ref_number})."
                 )
 
-        return JsonResponse({'id': br.pk, 'ref': ref, 'status': 'approved'}, status=201)
+        return JsonResponse({'id': br.pk, 'ref': ref, 'status': 'borrowed'}, status=201)
 
     return JsonResponse({'error': 'Method not allowed'}, status=405)
 
@@ -525,50 +621,166 @@ def dashboard_request_detail(request, req_id):
         if new_status and new_status != old_status:
             active_user = get_active_lims_user(request)
 
-            # Approving a pending request — take stock
+            # Approving a pending request RESERVES stock for its window but does
+            # NOT change available_count. The deduction happens only later, when
+            # the item is handed out (approved → borrowed). This keeps
+            # available_count as true physical on-hand instead of a forecast.
             if old_status == 'pending' and new_status == 'approved':
+                dn = br.date_needed
+                rd = br.return_date
                 for ri in br.items.select_related('item').all():
-                    rec = InventoryRecord.objects.filter(item_id=ri.item_id).first()
+                    rec = InventoryRecord.objects.filter(
+                        item_id=ri.item_id).first()
                     if not rec:
                         return JsonResponse(
                             {'error': f'No inventory record for "{ri.item.item_name}"'},
                             status=400,
                         )
-                    if rec.available_count < ri.quantity:
+                    capacity = date_capacity(
+                        rec.item, dn, rd, exclude_request_id=br.pk)
+                    if ri.quantity > capacity:
+                        booked = Decimal(str(rec.item.item_count)) - capacity
                         return JsonResponse(
                             {
                                 'error': (
-                                    f'Not enough stock for "{ri.item.item_name}". '
-                                    f'Available: {rec.available_count}, '
-                                    f'Requested: {ri.quantity}'
+                                    f'Can\'t approve "{ri.item.item_name}" for '
+                                    f'those dates: {_num(booked)} '
+                                    f'{rec.item.unit or "pcs"} are already '
+                                    f'reserved in that window by other '
+                                    f'approved/borrowed requests, leaving only '
+                                    f'{_num(capacity)} {rec.item.unit or "pcs"} '
+                                    f'free (this request needs '
+                                    f'{_num(ri.quantity)}).'
                                 )
                             },
                             status=409,
                         )
-                    InventoryRecord.objects.filter(pk=rec.pk).update(
-                        available_count=F('available_count') - ri.quantity
+                    InventoryLog.objects.create(
+                        user=active_user,
+                        item=ri.item,
+                        action_type='APPROVE',
+                        new_value=(
+                            f"Approved borrow request {br.ref_number} for "
+                            f"{ri.quantity} {ri.item.unit} to {br.borrower_name} "
+                            f"(reserves stock for {dn.date()}–{rd}; stock is "
+                            f"deducted when handed out)."
+                        )
                     )
+
+            # Hand-off: approved → borrowed deducts the physical stock.
+            # Directly jumping from any other status to 'borrowed' would skip
+            # the deduction, so only the approved → borrowed hop is allowed.
+            if new_status == 'borrowed' and old_status != 'approved':
+                return JsonResponse(
+                    {
+                        'error': 'A request can only be marked borrowed after it has been approved (approved → borrowed).'
+                    },
+                    status=409,
+                )
+            elif old_status == 'approved' and new_status == 'borrowed':
+                for ri in br.items.select_related('item').all():
+                    rec = InventoryRecord.objects.filter(
+                        item_id=ri.item_id).first()
+                    if not rec:
+                        return JsonResponse(
+                            {'error': f'No inventory record for "{ri.item.item_name}"'},
+                            status=400,
+                        )
+                    handed = InventoryRecord.objects.filter(
+                        pk=rec.pk, available_count__gte=ri.quantity
+                    ).update(available_count=F('available_count') - ri.quantity)
+                    if not handed:
+                        return JsonResponse(
+                            {
+                                'error': (
+                                    f'Not enough "{ri.item.item_name}" on hand to '
+                                    f'hand out {_num(ri.quantity)} '
+                                    f'{rec.item.unit or "pcs"} '
+                                    f'({_num(rec.available_count)} '
+                                    f'{rec.item.unit or "pcs"} available now).'
+                                )
+                            },
+                            status=409,
+                        )
                     InventoryLog.objects.create(
                         user=active_user,
                         item=ri.item,
                         action_type='BORROW',
-                        new_value=f"Approved borrow request {br.ref_number} for {ri.quantity} {ri.item.unit} to {br.borrower_name}."
+                        new_value=f"Handed out {ri.quantity} {ri.item.unit} of \"{ri.item.item_name}\" to {br.borrower_name} (request {br.ref_number})."
                     )
 
-            # Returning or cancelling an approved request — restore stock
-            elif old_status == 'approved' and new_status in ('returned', 'cancelled'):
+            # Return (also allowed straight from an approved reservation):
+            # what actually came back goes on the shelf; missing/damaged units
+            # are consumed. Stock is only restored if it was deducted (i.e. the
+            # item had been handed out via the borrowed status).
+            elif new_status == 'returned' and old_status in ('borrowed', 'approved'):
+                # Optional per-item condition flags with partial quantities sent
+                # when marking returned:
+                #   {"status":"returned",
+                #    "item_statuses":[{"item_id":5,"condition":"missing","quantity":2}]}
+                # Any units not counted as missing/damaged are restored to stock.
+                conditions = {}
                 for ri in br.items.all():
-                    InventoryRecord.objects.filter(item_id=ri.item_id).update(
-                        available_count=F('available_count') + ri.quantity
+                    conditions[ri.item_id] = {'missing': Decimal('0'),
+                                              'damaged': Decimal('0')}
+                if isinstance(body.get('item_statuses'), list):
+                    for entry in body['item_statuses']:
+                        try:
+                            iid  = int(entry['item_id'])
+                            cond = (entry.get('condition') or 'ok').lower()
+                            qty  = _to_decimal(entry.get('quantity'), Decimal('0'))
+                        except (TypeError, ValueError, KeyError):
+                            continue
+                        if iid in conditions and cond in ('missing', 'damaged'):
+                            conditions[iid][cond] = qty
+
+                for ri in br.items.all():
+                    flag = conditions.get(
+                        ri.item_id, {'missing': Decimal('0'), 'damaged': Decimal('0')}
                     )
-                    action = 'RETURN' if new_status == 'returned' else 'UPDATE'
-                    desc_action = 'returned' if new_status == 'returned' else 'cancelled'
-                    InventoryLog.objects.create(
-                        user=active_user,
-                        item=ri.item,
-                        action_type=action,
-                        new_value=f"Marked borrow request {br.ref_number} as {desc_action}: {ri.quantity} {ri.item.unit} from {br.borrower_name}."
-                    )
+                    missing = min(flag['missing'], ri.quantity)
+                    damaged = min(flag['damaged'], ri.quantity - missing)
+                    ok_qty  = ri.quantity - missing - damaged
+
+                    # Missing/damaged units were never returned — consume them.
+                    if missing or damaged:
+                        ri.missing_qty = missing
+                        ri.damaged_qty = damaged
+                        ri.item_status = (
+                            'damaged' if damaged and not missing else 'missing'
+                        )
+                        ri.status_updated_at = dj_timezone.now()
+                        ri.save(update_fields=[
+                            'missing_qty', 'damaged_qty',
+                            'item_status', 'status_updated_at',
+                        ])
+
+                    # Only a real hand-off took stock out; only it gets restored.
+                    if old_status == 'borrowed' and ok_qty > 0:
+                        InventoryRecord.objects.filter(
+                            item_id=ri.item_id).update(
+                            available_count=F('available_count') + ok_qty
+                        )
+                        InventoryLog.objects.create(
+                            user=active_user,
+                            item=ri.item,
+                            action_type='RETURN',
+                            new_value=f"Returned {ok_qty} {ri.item.unit} of \"{ri.item.item_name}\" from {br.borrower_name} (request {br.ref_number})."
+                        )
+                    if missing:
+                        InventoryLog.objects.create(
+                            user=active_user,
+                            item=ri.item,
+                            action_type='MISSING',
+                            new_value=f"Missing {missing} {ri.item.unit} of \"{ri.item.item_name}\" on request {br.ref_number}."
+                        )
+                    if damaged:
+                        InventoryLog.objects.create(
+                            user=active_user,
+                            item=ri.item,
+                            action_type='DAMAGED',
+                            new_value=f"Damaged {damaged} {ri.item.unit} of \"{ri.item.item_name}\" on request {br.ref_number}."
+                        )
 
         # ── Allowed updates only ───────────────────────────────────────────
         if 'is_signed' in body:
@@ -657,7 +869,7 @@ def dashboard_schedule(request):
                 'ref':           br.ref_number,
                 'item_id':       ri.item_id,
                 'item_name':     ri.item.item_name,
-                'quantity':      ri.quantity,
+                'quantity':      _num(ri.quantity),
                 'borrower_name': br.borrower_name,
                 'status':        br.status,
                 'date_needed':   date_needed_str,
@@ -740,3 +952,164 @@ def dashboard_diagnostics(request):
         'logs': logs,
     }
     return JsonResponse(data)
+
+
+# ─── Reports ──────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@dashboard_role_required
+def dashboard_reports(request):
+    """
+    GET  /api/dashboard/reports/              — list all saved reports
+    POST /api/dashboard/reports/              — generate a report
+        body: { "report_type": "daily|weekly|monthly|yearly|custom",
+                "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD" }
+              (start/end only required for custom; other types auto-compute)
+    """
+    if request.method == 'GET':
+        reports = list(
+            Report.objects
+            .select_related('created_by')
+            .values('id', 'report_type', 'title', 'start_date', 'end_date',
+                    'generated_at')[:200]
+        )
+        for r in reports:
+            r['start_date'] = r['start_date'].isoformat()
+            r['end_date']   = r['end_date'].isoformat()
+            r['generated_at'] = r['generated_at'].isoformat()
+        return JsonResponse(reports, safe=False)
+
+    if request.method == 'POST':
+        body, err = _parse_body(request)
+        if err:
+            return err
+
+        rtype = (body.get('report_type') or 'weekly').lower()
+        valid = [t for t, _ in Report.REPORT_TYPE_CHOICES]
+        if rtype not in valid:
+            return JsonResponse({'error': f'Invalid report_type: {rtype}'}, status=400)
+
+        try:
+            if rtype == 'custom':
+                start = datetime.date.fromisoformat(body['start_date'])
+                end = datetime.date.fromisoformat(body['end_date'])
+            else:
+                start, end = _period_for(rtype)
+        except (KeyError, ValueError):
+            return JsonResponse(
+                {'error': 'start_date and end_date are required (YYYY-MM-DD) for custom reports.'},
+                status=400,
+            )
+
+        if end < start:
+            return JsonResponse({'error': 'end_date must be on/after start_date.'}, status=400)
+
+        data = generate_report_data(start, end)
+        title = body.get('title') or build_report_title(rtype)
+        report = Report.objects.create(
+            report_type=rtype,
+            title=title,
+            start_date=start,
+            end_date=end,
+            data=data,
+            created_by=request.user if request.user.is_authenticated else None,
+        )
+        return JsonResponse({
+            'id': report.pk, 'report_type': report.report_type, 'title': report.title,
+            'start_date': report.start_date.isoformat(), 'end_date': report.end_date.isoformat(),
+            'generated_at': report.generated_at.isoformat(),
+        }, status=201)
+
+    return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+
+@csrf_exempt
+@dashboard_role_required
+def dashboard_report_detail(request, report_id):
+    """GET /api/dashboard/reports/<id>/     — report metadata + data
+       DELETE /api/dashboard/reports/<id>/  — delete a saved report"""
+    try:
+        report = Report.objects.get(pk=report_id)
+    except Report.DoesNotExist:
+        return JsonResponse({'error': 'Report not found.'}, status=404)
+
+    if request.method == 'DELETE':
+        report.delete()
+        return JsonResponse({'status': 'deleted'})
+
+    return JsonResponse({
+        'id': report.pk,
+        'report_type': report.report_type,
+        'title': report.title,
+        'start_date': report.start_date.isoformat(),
+        'end_date': report.end_date.isoformat(),
+        'generated_at': report.generated_at.isoformat(),
+        'data': report.data,
+    })
+
+
+@dashboard_role_required
+def dashboard_report_export(request, report_id):
+    """GET /api/dashboard/reports/<id>/export/?format=csv — download export."""
+    try:
+        report = Report.objects.get(pk=report_id)
+    except Report.DoesNotExist:
+        return JsonResponse({'error': 'Report not found.'}, status=404)
+
+    fmt = request.GET.get('format', 'csv').lower()
+    if fmt == 'csv':
+        csv_text = export_csv(report)
+        resp = HttpResponse(csv_text, content_type='text/csv')
+        resp['Content-Disposition'] = f'attachment; filename="report-{report.pk}.csv"'
+        return resp
+    if fmt == 'html':
+        html = render_report_html(report)
+        resp = HttpResponse(html, content_type='text/html')
+        resp['Content-Disposition'] = f'attachment; filename="report-{report.pk}.html"'
+        return resp
+    return JsonResponse({'error': f'Unsupported format: {fmt}'}, status=400)
+
+
+# ─── Restock ──────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@dashboard_role_required
+def dashboard_item_restock(request, item_id):
+    """
+    POST /api/dashboard/items/<id>/restock/
+        body: { "quantity": N }
+    Adds N to item_count and available_count, logs a RESTOCK entry.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+
+    body, err = _parse_body(request)
+    if err:
+        return err
+
+    qty = _to_decimal(body.get('quantity'))
+    if qty is None or qty <= 0:
+        return JsonResponse(
+            {'error': 'quantity must be a positive number.'}, status=400)
+
+    try:
+        item = Item.objects.get(pk=item_id)
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found.'}, status=404)
+
+    inv_record = InventoryRecord.objects.filter(item=item).first()
+    with transaction.atomic():
+        item.item_count = F('item_count') + qty
+        item.save(update_fields=['item_count'])
+        if inv_record:
+            InventoryRecord.objects.filter(item=item).update(
+                available_count=F('available_count') + qty
+            )
+        InventoryLog.objects.create(
+            user=get_active_lims_user(request),
+            item=item,
+            action_type='RESTOCK',
+            new_value=f"Restocked {qty} {item.unit or 'pcs'} of '{item.item_name}'.",
+        )
+
+    return JsonResponse({'status': 'restocked', 'item_id': item_id, 'quantity': _num(qty)})
