@@ -9,6 +9,10 @@ Everything the app needs is already in this repo (`Procfile`, `build.sh`,
 `requirements.txt` with gunicorn + WhiteNoise). What's left is choosing a host
 and setting environment variables.
 
+> **Prefer serverless + auto-deploy from GitHub?** See [VERCEL.md](VERCEL.md) —
+> Vercel + Neon Postgres, zero-config Django support, deploys on every push.
+> This file (DEPLOYMENT.md) covers the classic server / Railway path.
+
 ---
 
 ## The four pieces of a live Django site

@@ -23,6 +23,13 @@ idna==3.18
 gunicorn==23.0.0              # the WSGI server that actually runs the app
 whitenoise[brotli]==6.8.2     # serves /static/ when DEBUG=False
 
+# ── Serverless Postgres (Vercel / Neon) ──────────────────────────────────────
+# Setting DATABASE_URL in .env switches the app to PostgreSQL. psycopg
+# ships prebuilt binary wheels for Linux (3.12–3.14), so it installs cleanly
+# on Vercel — unlike mysqlclient, which has no Linux wheel and cannot compile
+# in Vercel's build image. Unused locally (SQLite) but harmless.
+psycopg[binary]==3.3.6
+
 # ── NOTE ─────────────────────────────────────────────────────────────────────
 # mysqlclient is deliberately NOT here. The app defaults to SQLite, which needs
 # no database server, and mysqlclient ships no prebuilt wheel for Linux — pip

@@ -13,6 +13,7 @@ Safe to re-run: it skips anything that already exists and never deletes.
 import re
 from pathlib import Path
 
+from decouple import config
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
@@ -104,6 +105,14 @@ class Command(BaseCommand):
     help = 'Load the lab inventory and create demo login accounts.'
 
     def handle(self, *args, **options):
+        # Fast path: already seeded. Keeps the Vercel build step cheap too —
+        # every deploy runs seed_demo, so this turns hundreds of inserts into
+        # one COUNT query once the database is populated.
+        if Item.objects.exists():
+            self.stdout.write(self.style.SUCCESS(
+                f'  Database already seeded ({Item.objects.count()} items) — nothing to do.'))
+            return
+
         sql_path = Path(settings.BASE_DIR) / 'biology_lab_lims.sql'
         if not sql_path.exists():
             self.stderr.write(self.style.ERROR(
@@ -112,21 +121,33 @@ class Command(BaseCommand):
 
         sql = sql_path.read_text(encoding='utf-8', errors='replace')
 
+        # The demo accounts (labpass123, ...) are a local-dev convenience, not
+        # production credentials. Only create them in development, or when
+        # explicitly asked with SEED_DEMO_ACCOUNTS=true in production.
+        allow_demo_accounts = settings.DEBUG or config(
+            'SEED_DEMO_ACCOUNTS', default=False, cast=bool)
+
         with transaction.atomic():
             self._seed_locations(sql)
             self._seed_types(sql)
             self._seed_lims_users(sql)
             self._seed_items(sql)
-            self._seed_accounts()
+            if allow_demo_accounts:
+                self._seed_accounts()
 
         self.stdout.write('')
         self.stdout.write(self.style.SUCCESS('  Database ready.'))
         self.stdout.write('')
-        self.stdout.write('  Sign in with any of these:')
-        self.stdout.write('')
-        for username, password, role, *_ in DEMO_ACCOUNTS:
-            label = dict(UserProfile.ROLE_CHOICES).get(role, role)
-            self.stdout.write(f'     {username:<10} / {password:<13} {label}')
+        if allow_demo_accounts:
+            self.stdout.write('  Sign in with any of these:')
+            self.stdout.write('')
+            for username, password, role, *_ in DEMO_ACCOUNTS:
+                label = dict(UserProfile.ROLE_CHOICES).get(role, role)
+                self.stdout.write(f'     {username:<10} / {password:<13} {label}')
+        else:
+            self.stdout.write('  Demo login accounts skipped (production mode).')
+            self.stdout.write('  Set SEED_DEMO_ACCOUNTS=true to create them, or use')
+            self.stdout.write('  python manage.py createsuperuser for a real account.')
         self.stdout.write('')
 
     # ── individual tables ────────────────────────────────────────────────────

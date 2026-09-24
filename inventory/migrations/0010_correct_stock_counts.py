@@ -11,7 +11,8 @@ This migration recomputes every record so existing data matches the new rule:
 
     available_count = max(0, item_count − quantity currently out 'borrowed')
 
-Works for both SQLite and MySQL (raw SQL; the legacy tables are unmanaged).
+Works across SQLite, MySQL, and PostgreSQL (raw SQL; the legacy tables are
+unmanaged).
 """
 
 from django.db import migrations
@@ -19,9 +20,14 @@ from django.db import migrations
 
 # `inventory_record` holds one row per item×location; the item's current on-hand
 # is the physical count minus anything that is actually out right now.
-REBASELINE_SQL = """
+#
+# The "don't go below zero" clamp is spelled differently per engine:
+#   SQLite/MySQL: scalar MAX(0, x) works.
+#   PostgreSQL:   MAX is only an aggregate — the scalar form is GREATEST(0, x).
+# The vendor is substituted at apply time (see rebaseline_stock below).
+REBASELINE_TEMPLATE = """
 UPDATE inventory_record
-SET available_count = MAX(0,
+SET available_count = {scalar_max}(0,
     COALESCE((SELECT item.item_count FROM item
               WHERE item.item_id = inventory_record.item_id), 0)
   - COALESCE((SELECT SUM(borrow_request_item.quantity)
@@ -34,7 +40,9 @@ SET available_count = MAX(0,
 
 
 def rebaseline_stock(apps, schema_editor):
-    schema_editor.execute(REBASELINE_SQL)
+    vendor = schema_editor.connection.vendor
+    scalar_max = 'GREATEST' if vendor == 'postgresql' else 'MAX'
+    schema_editor.execute(REBASELINE_TEMPLATE.format(scalar_max=scalar_max))
 
 
 class Migration(migrations.Migration):

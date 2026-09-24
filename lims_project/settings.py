@@ -13,6 +13,8 @@ CHANGES vs v1:
     except DB_PASSWORD, so a fresh clone mostly "just works" after that.
 """
 
+import urllib.parse
+
 from pathlib import Path
 from decouple import config, Csv
 
@@ -83,18 +85,44 @@ TEMPLATES = [
 WSGI_APPLICATION = 'lims_project.wsgi.application'
 
 # ─── DATABASE ────────────────────────────────────────────────────────────────
-# Two modes, chosen by DB_ENGINE in .env:
+# Three modes, chosen by what's in .env:
 #
-#   sqlite  (default) — zero setup. Django creates db.sqlite3 in this folder.
-#                       Best for running the project locally or demoing it.
-#   mysql             — the original setup. Requires MySQL installed and the
-#                       biology_lab_lims.sql file imported first.
+#   DATABASE_URL set   — serverless Postgres, e.g. the Neon integration on
+#                        Vercel injects this connection string automatically.
+#                        One string, parsed below. This is the production path.
+#   DB_ENGINE=mysql    — the original setup. Requires MySQL installed and the
+#                        biology_lab_lims.sql file imported first.
+#   DB_ENGINE=sqlite   — (default) zero setup. Django creates db.sqlite3 in
+#                        this folder. Best for running locally or demoing.
 #
 # SQLite is the default purely so a fresh clone runs with no install steps.
 # Nothing about the app changes; the models and queries are identical.
 DB_ENGINE = config('DB_ENGINE', default='sqlite').lower()
+DATABASE_URL = config('DATABASE_URL', default='').strip()
 
-if DB_ENGINE in ('mysql', 'django.db.backends.mysql'):
+if DATABASE_URL:
+    # Serverless Postgres (Neon, Supabase, ...). No persistent connections —
+    # serverless functions come and go, so CONN_MAX_AGE stays 0 — and
+    # CONN_HEALTH_CHECKS lets Django recover when idle compute drops
+    # connections (Neon scales to zero automatically).
+    _db_url = urllib.parse.urlparse(DATABASE_URL)
+    DATABASES = {
+        'default': {
+            'ENGINE':   'django.db.backends.postgresql',
+            'NAME':     _db_url.path[1:] or 'postgres',
+            'USER':     urllib.parse.unquote(_db_url.username or 'postgres'),
+            'PASSWORD': urllib.parse.unquote(_db_url.password or ''),
+            'HOST':     _db_url.hostname or '127.0.0.1',
+            'PORT':     _db_url.port or '',
+            'CONN_MAX_AGE': 0,
+            'CONN_HEALTH_CHECKS': True,
+        }
+    }
+    # Neon connection strings carry ?sslmode=require — keep TLS on.
+    _sslmode = urllib.parse.parse_qs(_db_url.query).get('sslmode', [''])[0]
+    if _sslmode and _sslmode != 'disable':
+        DATABASES['default']['OPTIONS'] = {'sslmode': _sslmode}
+elif DB_ENGINE in ('mysql', 'django.db.backends.mysql'):
     DATABASES = {
         'default': {
             'ENGINE':   'django.db.backends.mysql',
