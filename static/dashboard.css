@@ -438,6 +438,7 @@ body {
 }
 .flag-pill.on  { background: var(--success-bg); color: var(--success); }
 .flag-pill.off { background: var(--neutral-bg);  color: var(--muted); }
+.flag-pill.consumable { background: var(--warn-bg, #fff3cd); color: var(--warn, #b7791f); }
 
 /* ── GANTT CHART ─────────────────────────────────────────────────────────── */
 .schedule-toolbar {
@@ -1189,6 +1190,7 @@ body {
 }
 .flag-pill.on  { background: var(--success-bg); color: var(--malachite); }
 .flag-pill.off { background: var(--neutral-bg); color: var(--muted); }
+.flag-pill.consumable { background: var(--warn-bg, #fff3cd); color: var(--warn, #b7791f); }
 
 /* ── Schedule / Gantt ─────────────────────────────────────────────────────── */
 .gantt-wrap {

@@ -328,6 +328,10 @@
           <input type="checkbox" id="im-visible" checked>
           Visible to students &amp; teachers
         </label>
+        <label class="checkbox-label">
+          <input type="checkbox" id="im-consumable">
+          Consumable (not restored on return)
+        </label>
       </div>
     </div>
     <div class="modal-footer">
@@ -461,7 +465,7 @@
       <button class="modal-close" onclick="closeReturnModal()">×</button>
     </div>
     <div class="modal-body">
-      <p class="return-hint">Flag any item that came back missing or damaged. Missing/damaged items are not restored to stock.</p>
+      <p class="return-hint">Flag any item that came back missing or damaged — those are not restored to stock. Consumables are always used up when handed out.</p>
       <div id="rm-items-list" class="return-items-list"></div>
     </div>
     <div class="modal-footer">
@@ -780,6 +784,7 @@ function filterInventory() {
         <span class="flag-pill ${item.is_visible ? 'on' : 'off'}">
           ${item.is_visible ? 'Visible' : 'Hidden'}
         </span>
+        ${item.is_consumable ? '<span class="flag-pill consumable">Consumable</span>' : ''}
       </td>
       <td class="col-actions">
         <button class="btn btn-secondary btn-sm" onclick="openItemModal(${item.id})">Edit</button>
@@ -833,6 +838,7 @@ function openItemModal(itemId) {
     document.getElementById('im-desc').value      = '';
     document.getElementById('im-borrowable').checked = true;
     document.getElementById('im-visible').checked    = true;
+    document.getElementById('im-consumable').checked = false;
     // Reset type/location to first option
     document.getElementById('im-type').selectedIndex     = 0;
     document.getElementById('im-location').selectedIndex = 0;
@@ -848,6 +854,7 @@ function openItemModal(itemId) {
     document.getElementById('im-desc').value      = item.description;
     document.getElementById('im-borrowable').checked = item.is_borrowable;
     document.getElementById('im-visible').checked    = item.is_visible;
+    document.getElementById('im-consumable').checked = item.is_consumable;
     document.getElementById('im-type').value          = item.type_id;
     document.getElementById('im-location').value      = item.location_id;
   }
@@ -875,6 +882,7 @@ async function saveItem() {
     description:     document.getElementById('im-desc').value.trim(),
     is_borrowable:   document.getElementById('im-borrowable').checked,
     is_visible:      document.getElementById('im-visible').checked,
+    is_consumable:   document.getElementById('im-consumable').checked,
   };
 
   try {
@@ -1247,6 +1255,7 @@ function openReturnModal(reqId) {
       <div class="return-item-name">
         <strong>${escHtml(it.item_name)}</strong>
         <span class="muted">×${fmtQty(qty)}${fmtUnit(unit)}</span>
+        ${it.is_consumable ? '<div class="muted return-consumable-hint">Consumable — used up on hand-out, not restored to stock</div>' : ''}
       </div>
       <div class="return-item-status">
         <label class="radio-label"><input type="radio" name="status-${it.item_id}"

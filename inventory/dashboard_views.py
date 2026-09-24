@@ -152,6 +152,7 @@ def _serialise_request(br):
             'quantity':  _num(ri.quantity),
             'unit':      (ri.item.unit or 'pcs'),
             'available': _num(rec.available_count if rec else 0),
+            'is_consumable': ri.item.is_consumable,
             'item_status': ri.item_status,
             'missing_qty': _num(ri.missing_qty),
             'damaged_qty': _num(ri.damaged_qty),
@@ -236,6 +237,7 @@ def dashboard_items(request):
                 'description':    item.item_description or '',
                 'is_borrowable':  item.is_borrowable,
                 'is_visible':     item.is_visible,
+                'is_consumable':  item.is_consumable,
                 'available_count': _num(rec.available_count),
                 'location_id':    rec.location_id,
                 'location_name':  rec.location.location_name,
@@ -277,6 +279,7 @@ def dashboard_items(request):
                 item_description = (body.get('description') or '').strip(),
                 is_borrowable    = bool(body.get('is_borrowable', True)),
                 is_visible       = bool(body.get('is_visible', True)),
+                is_consumable    = bool(body.get('is_consumable', False)),
             )
             item.save()
             InventoryRecord.objects.create(
@@ -325,6 +328,7 @@ def dashboard_item_detail(request, item_id):
             'item_count':    ('item_count',        lambda v: _to_decimal(v, 0)),
             'is_borrowable': ('is_borrowable',     bool),
             'is_visible':    ('is_visible',        bool),
+            'is_consumable': ('is_consumable',     bool),
         }
         item_dirty = False
         old_values = {}
@@ -712,7 +716,8 @@ def dashboard_request_detail(request, req_id):
             # Return (also allowed straight from an approved reservation):
             # what actually came back goes on the shelf; missing/damaged units
             # are consumed. Stock is only restored if it was deducted (i.e. the
-            # item had been handed out via the borrowed status).
+            # item had been handed out via the borrowed status), and never for
+            # consumables — those are used up on hand-out.
             elif new_status == 'returned' and old_status in ('borrowed', 'approved'):
                 # Optional per-item condition flags with partial quantities sent
                 # when marking returned:
@@ -756,17 +761,28 @@ def dashboard_request_detail(request, req_id):
                         ])
 
                     # Only a real hand-off took stock out; only it gets restored.
+                    # Consumables (alcohol, reagents, PCR supplies) are used up
+                    # when handed out — nothing comes back to the shelf, so the
+                    # return only closes the request (and records consumption).
                     if old_status == 'borrowed' and ok_qty > 0:
-                        InventoryRecord.objects.filter(
-                            item_id=ri.item_id).update(
-                            available_count=F('available_count') + ok_qty
-                        )
-                        InventoryLog.objects.create(
-                            user=active_user,
-                            item=ri.item,
-                            action_type='RETURN',
-                            new_value=f"Returned {ok_qty} {ri.item.unit} of \"{ri.item.item_name}\" from {br.borrower_name} (request {br.ref_number})."
-                        )
+                        if ri.item.is_consumable:
+                            InventoryLog.objects.create(
+                                user=active_user,
+                                item=ri.item,
+                                action_type='CONSUME',
+                                new_value=f"Consumed {ok_qty} {ri.item.unit} of \"{ri.item.item_name}\" on request {br.ref_number} ({br.borrower_name}); no stock restored."
+                            )
+                        else:
+                            InventoryRecord.objects.filter(
+                                item_id=ri.item_id).update(
+                                available_count=F('available_count') + ok_qty
+                            )
+                            InventoryLog.objects.create(
+                                user=active_user,
+                                item=ri.item,
+                                action_type='RETURN',
+                                new_value=f"Returned {ok_qty} {ri.item.unit} of \"{ri.item.item_name}\" from {br.borrower_name} (request {br.ref_number})."
+                            )
                     if missing:
                         InventoryLog.objects.create(
                             user=active_user,

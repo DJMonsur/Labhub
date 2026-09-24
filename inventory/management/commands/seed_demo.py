@@ -216,6 +216,11 @@ class Command(BaseCommand):
                     'unit': unit,
                     'is_borrowable': True,
                     'is_visible': True,
+                    # Consumables (alcohol, reagents, PCR supplies) are the
+                    # Material category — they are used up when handed out and
+                    # are NOT restored to stock on return. (Existing databases
+                    # get the same classification from migration 0011.)
+                    'is_consumable': item_type.category == 'Material',
                 },
             )
             made += created

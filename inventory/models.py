@@ -106,6 +106,10 @@ class Item(models.Model):
     item_description = models.TextField(null=True, blank=True)
     is_borrowable    = models.BooleanField(default=True)
     is_visible       = models.BooleanField(default=True)   # ← added in migration 0002
+    # Consumables (alcohol, reagents, PCR supplies) are used up when handed
+    # out — marking the request 'returned' does NOT restore their quantity.
+    # Added in migration 0011.
+    is_consumable    = models.BooleanField(default=False)
 
     class Meta:
         db_table = 'item'

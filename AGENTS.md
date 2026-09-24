@@ -57,7 +57,7 @@ Open `http://127.0.0.1:8000` (redirects to `/accounts/login/`). Demo accounts:
 
 **Role system** (`UserProfile.role`): `student_teacher` (view + borrow only), `lab_personnel` (dashboard), `it_personnel` (dashboard + diagnostics + superuser). Google sign-in optional — blank `GOOGLE_CLIENT_ID`/`SECRET` falls back to username/password.
 
-**Stock lifecycle (the core quirk):** approving a request *reserves* capacity (via `availability.date_capacity`) but does NOT change `available_count`. Deduction happens on hand-off (`approved → borrowed`), restoration on return. A request can only reach `borrowed` from `approved`. Partial returns via per-item `missing_qty`/`damaged_qty` (those units are not restored). `DELETE` on an item is blocked if it has any borrow history — hide with `is_visible` instead.
+**Stock lifecycle (the core quirk):** approving a request *reserves* capacity (via `availability.date_capacity`) but does NOT change `available_count`. Deduction happens on hand-off (`approved → borrowed`), restoration on return. A request can only reach `borrowed` from `approved`. Partial returns via per-item `missing_qty`/`damaged_qty` (those units are not restored). Consumables (`Item.is_consumable`, added in migration 0011; seeded as Material-category items) are used up on hand-off — marking them `returned` logs a `CONSUME` entry and restores nothing. `DELETE` on an item is blocked if it has any borrow history — hide with `is_visible` instead.
 
 ## Key Gotchas
 
