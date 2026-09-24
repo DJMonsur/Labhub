@@ -581,6 +581,29 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .borrow-row span:last-child { font-family: var(--f-mono); font-size: .72rem; color: var(--text-dim); }
 
+/* Optional "Borrowed on a date" checker on the details page */
+.date-check-block { margin-top: 14px; }
+.date-check-block h4 {
+  font-size: .68rem; font-weight: 500; text-transform: uppercase;
+  letter-spacing: .09em; color: var(--text-dim); margin-bottom: 4px;
+}
+.date-check-block .date-check-label {
+  display: block; font-size: .74rem; color: var(--text-dim); margin-bottom: 6px;
+}
+#det-date-check {
+  width: 100%; box-sizing: border-box;
+  background: var(--surface); color: var(--text);
+  border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: 7px 9px; font-family: var(--f); font-size: .8rem;
+}
+#det-date-check:focus { outline: none; border-color: var(--accent); }
+.date-borrows-empty { font-size: .78rem; color: var(--text-dim); padding: 6px 0; }
+.date-borrow-status {
+  font-style: normal; font-size: .68rem; text-transform: capitalize;
+  color: var(--warn); border: 1px solid var(--line-soft);
+  border-radius: 99px; padding: 0 6px; margin-left: 2px;
+}
+
 .qty-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .qty-label { font-size: .78rem; color: var(--text-mid); }
 .qty-ctrl { display: flex; border: 1px solid var(--line); border-radius: var(--r-sm); overflow: hidden; }

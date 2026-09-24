@@ -15,6 +15,7 @@ CHANGES vs v1:
 
 import json
 import time
+import datetime
 from decimal import Decimal
 from django.shortcuts import render, redirect
 from django.http            import JsonResponse
@@ -330,3 +331,131 @@ def submit_borrow(request):
         )
 
     return JsonResponse({'ref': ref, 'status': 'pending'}, status=201)
+
+
+# ─── GET /api/inventory/items/<id>/borrows/ ───────────────────────────────────
+# Date-aware borrow lookup for the item details page: given an optional
+# ?date=YYYY-MM-DD, returns every borrow covering that date — the physical
+# loans in the legacy borrow_record table plus the approved/borrowed web
+# reservations from borrow_request. Without ?date it returns them all.
+#
+# Only active bookings count (approved / borrowed), matching the definitions
+# used everywhere else in the app (ACTIVE_STATUSES). Returned/cancelled/
+# pending rows are never shown.
+
+def _fmt_dt(value):
+    """ISO-format a date/datetime for the API, in the local timezone."""
+    if value is None:
+        return None
+    from django.utils import timezone as dj_timezone
+    try:
+        if dj_timezone.is_aware(value):
+            value = dj_timezone.localtime(value)
+    except Exception:
+        pass
+    return value.isoformat()
+
+
+def _in_window(start, end, target):
+    """True when the [start, end] window covers `target` (a date, or None to
+    match everything). Open-ended windows count as covering anything."""
+    if not target:
+        return True
+
+    def _d(v):
+        return v.date() if hasattr(v, 'date') else v  # datetime → date
+
+    s, e = _d(start), _d(end)
+    if s is None and e is None:
+        return True                    # active but undated — show it anyway
+    if s is not None and target < s:
+        return False
+    if e is not None and target > e:
+        return False
+    return True
+
+
+@require_http_methods(['GET'])
+def item_borrows(request, item_id):
+    """
+    GET /api/inventory/items/<item_id>/borrows/?date=YYYY-MM-DD
+
+    Returns the active borrows for one item, optionally narrowed to the
+    bookings that overlap a given date. Each entry carries who borrowed it
+    (name), how much, and the time window:
+
+      { "item_id", "item_name", "date", "borrows": [
+          { "source": "borrow_request"|"borrow_record",
+            "ref": "BRW-XXXXXX" | "BR#<id>",
+            "user", "qty", "unit", "start", "end", "status" }, ... ] }
+
+    `end` is end-of-day for date-only return dates; `start` keeps the time.
+    """
+    try:
+        item = Item.objects.get(pk=item_id)
+    except Item.DoesNotExist:
+        return JsonResponse({'error': 'Item not found.'}, status=404)
+
+    date_param = (request.GET.get('date') or '').strip()
+    target = None
+    if date_param:
+        try:
+            target = datetime.date.fromisoformat(date_param)
+        except ValueError:
+            return JsonResponse(
+                {'error': 'Invalid date. Use YYYY-MM-DD.'}, status=400)
+
+    user_names = dict(LimsUser.objects.values_list('user_id', 'user_name'))
+    unit = item.unit or 'pcs'
+    entries = []
+
+    # ── legacy borrow_record (physical loans) ────────────────────────────
+    for br in BorrowRecord.objects.filter(
+            item_id=item_id, status__in=('approved', 'borrowed')):
+        end = br.return_date
+        if end is None and br.due_date is not None:
+            end = datetime.datetime.combine(br.due_date, datetime.time.max)
+        if not _in_window(br.borrow_date, end, target):
+            continue
+        entries.append({
+            'source': 'borrow_record',
+            'ref':    f'BR#{br.borrow_id}',
+            'user':   user_names.get(br.user_id, 'Unknown'),
+            'qty':    _num(br.quantity_borrowed),
+            'unit':   unit,
+            'start':  _fmt_dt(br.borrow_date),
+            'end':    _fmt_dt(end),
+            'status': br.status,
+        })
+
+    # ── web borrow_request reservations (approved / borrowed) ────────────
+    qs = (
+        BorrowRequestItem.objects
+        .filter(item_id=item_id,
+                borrow_request__status__in=('approved', 'borrowed'))
+        .select_related('borrow_request')
+    )
+    for ri in qs:
+        brq = ri.borrow_request
+        end = (datetime.datetime.combine(brq.return_date, datetime.time.max)
+               if brq.return_date else None)
+        if not _in_window(brq.date_needed, end, target):
+            continue
+        entries.append({
+            'source': 'borrow_request',
+            'ref':    brq.ref_number,
+            'user':   brq.borrower_name,
+            'qty':    _num(ri.quantity),
+            'unit':   unit,
+            'start':  _fmt_dt(brq.date_needed),
+            'end':    _fmt_dt(end),
+            'status': brq.status,
+        })
+
+    entries.sort(key=lambda e: (e['start'] is None, e['start'] or ''))
+    return JsonResponse({
+        'item_id':   item.item_id,
+        'item_name': item.item_name,
+        'date':      date_param or None,
+        'borrows':   entries,
+    })

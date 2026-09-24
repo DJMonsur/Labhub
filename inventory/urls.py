@@ -4,6 +4,7 @@ from . import views, dashboard_views
 urlpatterns = [
     # ── Public API (inventory page) ───────────────────────────────────────────
     path('inventory/', views.inventory_list, name='inventory-list'),
+    path('inventory/items/<int:item_id>/borrows/', views.item_borrows, name='item-borrows'),
     path('borrow/',    views.submit_borrow,  name='submit-borrow'),
 
     # ── Dashboard API ─────────────────────────────────────────────────────────

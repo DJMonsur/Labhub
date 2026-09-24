@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   <meta name="theme-color" content="#0F2231">
-  <link rel="stylesheet" href="{% static 'styles.css' %}?v=11">
+  <link rel="stylesheet" href="{% static 'styles.css' %}?v=12">
   <script>
     // Set the theme before first paint — a flash of the wrong theme on every
     // page load is the classic dark-mode bug, and it's caused by doing this
@@ -216,6 +216,15 @@
               <div class="borrows-list" id="det-borrows-wrap">
                 <h4>Active Borrow Records</h4>
                 <div id="det-borrows"></div>
+              </div>
+              <div class="date-check-block">
+                <h4>Borrowed on a date</h4>
+                <label class="date-check-label" for="det-date-check">
+                  Optional — pick a date to see who has this item out then, and how many.
+                </label>
+                <input type="date" id="det-date-check" onchange="updateDateBorrows()"
+                       aria-label="Check who has this item borrowed on a date">
+                <div id="det-date-borrows"></div>
               </div>
             </div>
             <div>
@@ -801,6 +810,12 @@
     document.getElementById('det-qty-unit').textContent = currentUnit;
     document.getElementById('det-qty-error').textContent = '';
 
+    // The optional date-borrow check is per item — reset it when switching.
+    const dateCheck = document.getElementById('det-date-check');
+    if (dateCheck) dateCheck.value = '';
+    const dateBorrows = document.getElementById('det-date-borrows');
+    if (dateBorrows) dateBorrows.innerHTML = '';
+
     updateDetailButtons();
   }
 
@@ -850,6 +865,56 @@
     } else {
       wrap.style.display = 'none';
     }
+  }
+
+  // ─── OPTIONAL DATE BORROW CHECK ──────────────────────────────────────────
+  // The details page's "Borrowed on a date" field queries the backend for the
+  // active borrows (legacy borrow_record loans + approved/borrowed web
+  // requests) whose window covers the chosen date.
+  function updateDateBorrows() {
+    const input = document.getElementById('det-date-check');
+    const list  = document.getElementById('det-date-borrows');
+    if (!input || !list) return;
+    const date = input.value;                 // '' or YYYY-MM-DD
+
+    if (!currentItem || !date) {
+      list.innerHTML = '';
+      return;
+    }
+
+    list.innerHTML = '<div class="date-borrows-empty">Checking…</div>';
+
+    fetch(`/api/inventory/items/${currentItem.id}/borrows/?date=${date}`)
+      .then(res => res.ok ? res.json() : Promise.reject(new Error('HTTP ' + res.status)))
+      .then(data => {
+        const rows = data.borrows || [];
+        if (!rows.length) {
+          list.innerHTML =
+            '<div class="date-borrows-empty">Nothing borrowed on this date — it looks free.</div>';
+          return;
+        }
+        list.innerHTML = rows.map(b => {
+          const qty = `${fmtNum(b.qty)} ${escHtml(b.unit || 'pcs')}`;
+          return `<div class="borrow-row">
+            <span><strong>${escHtml(b.user)}</strong> · ${qty} <em class="date-borrow-status">${escHtml(b.status)}</em></span>
+            <span>${escHtml(fmtBorrowWindow(b))}</span>
+          </div>`;
+        }).join('');
+      })
+      .catch(err => {
+        console.error('Date borrow lookup failed:', err);
+        list.innerHTML = '<div class="date-borrows-empty">Could not load borrows for this date.</div>';
+      });
+  }
+
+  // YYYY-MM-DDTHH:MM:SS… → "2026-09-24 08:30", date-only ends strip the time.
+  function fmtBorrowWindow(b) {
+    const s = b.start ? b.start.slice(0, 16).replace('T', ' ') : '';
+    const e = b.end   ? b.end.slice(0, 10) : '';
+    if (s && e) return `${s} → ${e}`;
+    if (s) return s;
+    if (e) return `by ${e}`;
+    return b.status || '';
   }
 
   function updateDetailButtons() {

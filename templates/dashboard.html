@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="{% static 'dashboard.css' %}?v=14">
+  <link rel="stylesheet" href="{% static 'dashboard.css' %}?v=15">
   <script>
     // Set theme before first paint so the page doesn't flash the wrong scheme.
     (function () {
@@ -193,9 +193,20 @@
     <span class="month-label" id="month-label">—</span>
     <button class="btn-icon" onclick="changeMonth(1)"  title="Next month">▶</button>
     <div class="toolbar-spacer"></div>
+    <label class="checkbox-label sched-hide-label"
+           title="Hide items whose requests are all returned and nothing is upcoming">
+      <input type="checkbox" id="sched-hide-done" onchange="toggleHideDone()">
+      Hide completed
+    </label>
     <button class="btn btn-primary" onclick="openManualModal()">+ Add Entry</button>
   </div>
   <div class="gantt-wrap">
+    <div class="gantt-legend" aria-label="Schedule color legend">
+      <span class="legend-title">Legend</span>
+      <span class="legend-item"><span class="legend-swatch status-pending"></span>Pending</span>
+      <span class="legend-item"><span class="legend-swatch status-approved"></span>Approved</span>
+      <span class="legend-item"><span class="legend-swatch status-returned"></span>Returned</span>
+    </div>
     <div class="gantt-scroll" id="gantt-container">
       <div class="gantt-empty">Loading schedule…</div>
     </div>
@@ -478,6 +489,7 @@ let scheduleData = null; // from GET /api/dashboard/schedule/
 let allReports   = [];   // from GET /api/dashboard/reports/
 let currentTab   = 'requests';
 let schedYear, schedMonth;
+let hideDoneItems = false;   // "Hide completed" toggle on the schedule tab
 let editingItemId    = null;  // null = new item, int = editing existing
 let manualItemRows   = [];    // [{item_id, qty}, …] for manual-modal
 let returnReqId      = null;  // id of request being marked returned
@@ -490,6 +502,11 @@ async function init() {
   schedYear  = today.getFullYear();
   schedMonth = today.getMonth() + 1;
   renderMonthLabel();
+
+  // Restore the "Hide completed" schedule preference.
+  try { hideDoneItems = localStorage.getItem('labhub-sched-hide-done') === '1'; } catch (e) {}
+  const hideCb = document.getElementById('sched-hide-done');
+  if (hideCb) hideCb.checked = hideDoneItems;
 
   await Promise.all([loadItems(), loadRequests(), loadRefData()]);
   loadSchedule(); // pre-load in background so Schedule tab is ready immediately
@@ -953,6 +970,22 @@ function renderTimeline(data) {
     itemMap.get(e.item_id).borrows.push(e);
   }
 
+  // "Hide completed": drop items whose requests are ALL returned and nothing
+  // is pending/approved — i.e. only complete bookings, nothing upcoming.
+  if (hideDoneItems) {
+    for (const [itemId, info] of itemMap) {
+      const anyUpcoming = info.borrows.some(b => b.status !== 'returned');
+      const anyDone     = info.borrows.some(b => b.status === 'returned');
+      if (anyDone && !anyUpcoming) itemMap.delete(itemId);
+    }
+    if (!itemMap.size) {
+      container.innerHTML = `<div class="gantt-empty">
+        <div class="empty-icon"><svg class="ico" viewBox="0 0 24 24"><use href="#i-calendar"/></svg></div>
+        Everything in this period is completed — nothing to show.</div>`;
+      return;
+    }
+  }
+
   // Build day-header cells
   const dayCells = [];
   for (let d = 0; d < totalDays; d++) {
@@ -975,9 +1008,11 @@ function renderTimeline(data) {
     return `<div class="gantt-grid-line ${isToday ? 'today-line' : ''}"></div>`;
   }).join('');
 
-  // Build rows
-  const rowsHtml = [...itemMap.entries()].map(([itemId, info]) => {
-    const bars = info.borrows.map(b => {
+  // Build rows — ONE ROW PER BORROW so multiple requests for the same item
+  // each get their own lane and never overlap. The item name labels the first
+  // row of its group; follow-up rows show only a guide marker on the label.
+  const rowsHtml = [...itemMap.entries()].flatMap(([itemId, info]) =>
+    info.borrows.map((b, idx) => {
       const bStart  = new Date(b.date_needed  + 'T00:00:00');
       const bEnd    = new Date(b.return_date  + 'T00:00:00');
       const cStart  = new Date(Math.max(bStart, first));
@@ -986,25 +1021,23 @@ function renderTimeline(data) {
       const wPct    = ((cEnd - cStart)  / ((last - first) + 86400000)) * 100 +
                       (1 / totalDays * 100);   // +1 day so single-day has width
       const label   = `${b.ref} ×${b.quantity}`;
-      return `<div class="gantt-bar status-${b.status}"
+      const bar = `<div class="gantt-bar status-${b.status}"
           style="left:${leftPct.toFixed(2)}%;width:${Math.max(wPct,1.5).toFixed(2)}%"
           title="${escAttr(b.ref + ' — ' + b.borrower_name + ' ×' + b.quantity)}">${escHtml(label)}</div>`;
-    }).join('');
 
-    const todayLine = todayPct >= 0
-      ? `<div class="today-overlay" style="left:${todayPct.toFixed(2)}%"></div>` : '';
+      const todayLine = todayPct >= 0
+        ? `<div class="today-overlay" style="left:${todayPct.toFixed(2)}%"></div>` : '';
 
-    return `<div class="gantt-row">
-      <div class="gantt-label">
-        ${escHtml(info.name)}
-      </div>
-      <div class="gantt-track">
-        <div class="gantt-grid-lines">${gridLines}</div>
-        ${todayLine}
-        ${bars}
-      </div>
-    </div>`;
-  }).join('');
+      return `<div class="gantt-row">
+        <div class="gantt-label ${idx === 0 ? '' : 'gantt-label-cont'}">${idx === 0 ? escHtml(info.name) : ''}</div>
+        <div class="gantt-track">
+          <div class="gantt-grid-lines">${gridLines}</div>
+          ${todayLine}
+          ${bar}
+        </div>
+      </div>`;
+    })
+  ).join('');
 
   container.innerHTML = `
     <div class="gantt-row header-row">
@@ -1014,6 +1047,12 @@ function renderTimeline(data) {
       </div>
     </div>
     ${rowsHtml}`;
+}
+
+function toggleHideDone() {
+  hideDoneItems = document.getElementById('sched-hide-done').checked;
+  try { localStorage.setItem('labhub-sched-hide-done', hideDoneItems ? '1' : '0'); } catch (e) {}
+  if (scheduleData) renderTimeline(scheduleData);   // re-render in place, no refetch
 }
 
 /* ─── REPORTS TAB ────────────────────────────────────────────────────────── */

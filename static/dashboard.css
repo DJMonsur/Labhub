@@ -1230,6 +1230,38 @@ body {
 .today-overlay { background: var(--eosin); opacity: .55; }
 .gantt-grid-line.today-line { border-right-color: rgba(200,68,122,.35); }
 
+/* Legend above the timeline — swatches mirror the winning .gantt-bar colors */
+.gantt-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--card-bg);
+  color: var(--muted);
+  font-size: 12px;
+}
+.legend-title {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .12em;
+  font-size: 10px;
+  color: var(--muted);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; }
+.legend-swatch.status-pending  { background: var(--iodine); }
+.legend-swatch.status-approved { background: var(--methylene); }
+.legend-swatch.status-returned { background: var(--malachite); }
+
+/* Multi-request items use one row per borrow; follow-up rows keep only a
+   faint guide so the group stays traceable without repeating the name. */
+.gantt-label-cont { border-left: 3px solid var(--line-soft); }
+
+/* "Hide completed" toggle in the schedule toolbar */
+.sched-hide-label { white-space: nowrap; }
+
 /* ── Modals ───────────────────────────────────────────────────────────────── */
 .modal-overlay { background: rgba(15,34,49,.5); backdrop-filter: blur(3px); }
 .modal { border-radius: var(--radius-lg); border: 1px solid var(--border); }
