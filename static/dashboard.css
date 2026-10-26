@@ -1417,6 +1417,34 @@ body {
   }
 }
 
+@media (max-width: 768px) {
+  .dash-header { padding: 0 12px; gap: 10px; }
+  .dash-title { font-size: 14px; }
+  .tab-bar { padding: 0 12px; overflow-x: auto; }
+  .tab-btn { padding: 10px 12px; white-space: nowrap; }
+  .tab-panel { padding: 16px 12px 32px; }
+  .panel-toolbar { gap: 8px; }
+  .panel-toolbar input[type="text"] { min-width: 150px; }
+  .requests-list { max-width: 100%; }
+  .field-row, .field-row-3 { grid-template-columns: 1fr; }
+  .checkbox-row { flex-wrap: wrap; gap: 12px; }
+  .manual-item-row { grid-template-columns: 1fr 60px 60px 28px; }
+  .modal { max-height: 95vh; }
+  .modal-body { padding: 16px; }
+}
+
+@media (max-width: 480px) {
+  .dash-header { height: 50px; }
+  .dash-header .back-link { font-size: 12px; }
+  .card-header { padding: 10px 12px 0; }
+  .card-meta, .card-purpose, .card-dates { padding: 4px 12px 0; }
+  .card-items { margin: 10px 12px 0; }
+  .card-actions { padding: 10px 12px; }
+  .modal { max-width: 100%; }
+  .report-card { flex-direction: column; align-items: flex-start; }
+  .report-card-actions { width: 100%; flex-wrap: wrap; }
+}
+
 /* Inline SVG icons replace the emoji that used to sit in tabs, buttons and
    cards. Sized in em so they scale with whatever text they sit beside. */
 .ico {

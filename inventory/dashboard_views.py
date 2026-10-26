@@ -394,8 +394,11 @@ def dashboard_item_detail(request, item_id):
                     user=get_active_lims_user(request),
                     item=item,
                     action_type='UPDATE',
-                    old_value=json.dumps(old_values),
-                    new_value=json.dumps(new_values),
+                    # Counts are Decimal, which json.dumps can't encode;
+                    # stringify anything non-native so the audit log never
+                    # turns a successful edit into a 500.
+                    old_value=json.dumps(old_values, default=str),
+                    new_value=json.dumps(new_values, default=str),
                 )
 
         return JsonResponse({'status': 'updated'})

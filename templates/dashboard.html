@@ -787,9 +787,9 @@ function filterInventory() {
         ${item.is_consumable ? '<span class="flag-pill consumable">Consumable</span>' : ''}
       </td>
       <td class="col-actions">
-        <button class="btn btn-secondary btn-sm" onclick="openItemModal(${item.id})">Edit</button>
-        <button class="btn btn-secondary btn-sm" onclick="restockItem(${item.id}, '${escAttr(item.name)}')">Restock</button>
-        <button class="btn btn-danger btn-sm"    onclick="deleteItem(${item.id}, '${escAttr(item.name)}')">Delete</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="openItemModal(${item.id})">Edit</button>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="restockItem(${item.id}, '${escAttr(item.name).replace(/'/g, "\\'")}')">Restock</button>
+        <button type="button" class="btn btn-danger btn-sm" onclick="deleteItem(${item.id}, '${escAttr(item.name).replace(/'/g, "\\'")}')">Delete</button>
       </td>
     </tr>`;
   }).join('');
@@ -825,42 +825,46 @@ function populateItemModalDropdowns() {
 }
 
 function openItemModal(itemId) {
-  editingItemId = itemId;
-  const title   = document.getElementById('item-modal-title');
+  try {
+    editingItemId = itemId;
+    const title   = document.getElementById('item-modal-title');
 
-  if (itemId === null) {
-    // ── New item: clear fields ──
-    title.textContent = 'Add Item';
-    document.getElementById('im-name').value      = '';
-    document.getElementById('im-count').value     = '0';
-    document.getElementById('im-available').value = '0';
-    document.getElementById('im-unit').value      = 'pcs';
-    document.getElementById('im-desc').value      = '';
-    document.getElementById('im-borrowable').checked = true;
-    document.getElementById('im-visible').checked    = true;
-    document.getElementById('im-consumable').checked = false;
-    // Reset type/location to first option
-    document.getElementById('im-type').selectedIndex     = 0;
-    document.getElementById('im-location').selectedIndex = 0;
-  } else {
-    // ── Editing: pre-fill ──
-    const item = allItems.find(i => i.id === itemId);
-    if (!item) return;
-    title.textContent = 'Edit Item';
-    document.getElementById('im-name').value      = item.name;
-    document.getElementById('im-count').value     = item.item_count;
-    document.getElementById('im-available').value = item.available_count;
-    document.getElementById('im-unit').value      = item.unit;
-    document.getElementById('im-desc').value      = item.description;
-    document.getElementById('im-borrowable').checked = item.is_borrowable;
-    document.getElementById('im-visible').checked    = item.is_visible;
-    document.getElementById('im-consumable').checked = item.is_consumable;
-    document.getElementById('im-type').value          = item.type_id;
-    document.getElementById('im-location').value      = item.location_id;
+    if (itemId === null || itemId === undefined) {
+      title.textContent = 'Add Item';
+      document.getElementById('im-name').value      = '';
+      document.getElementById('im-count').value     = '0';
+      document.getElementById('im-available').value = '0';
+      document.getElementById('im-unit').value      = 'pcs';
+      document.getElementById('im-desc').value      = '';
+      document.getElementById('im-borrowable').checked = true;
+      document.getElementById('im-visible').checked    = true;
+      document.getElementById('im-consumable').checked = false;
+      const typeSel = document.getElementById('im-type');
+      const locSel = document.getElementById('im-location');
+      if (typeSel) typeSel.selectedIndex = 0;
+      if (locSel) locSel.selectedIndex = 0;
+    } else {
+      const item = allItems.find(i => i.id == itemId);
+      if (!item) { toast('Item not found.', 'error'); return; }
+      title.textContent = 'Edit Item';
+      document.getElementById('im-name').value      = item.name || '';
+      document.getElementById('im-count').value     = item.item_count || 0;
+      document.getElementById('im-available').value = item.available_count || 0;
+      document.getElementById('im-unit').value      = item.unit || 'pcs';
+      document.getElementById('im-desc').value      = item.description || '';
+      document.getElementById('im-borrowable').checked = !!item.is_borrowable;
+      document.getElementById('im-visible').checked    = !!item.is_visible;
+      document.getElementById('im-consumable').checked = !!item.is_consumable;
+      document.getElementById('im-type').value          = item.type_id;
+      document.getElementById('im-location').value      = item.location_id;
+    }
+
+    document.getElementById('item-modal').classList.remove('hidden');
+    document.getElementById('im-name').focus();
+  } catch (e) {
+    console.error(e);
+    toast('Error opening item editor.', 'error');
   }
-
-  document.getElementById('item-modal').classList.remove('hidden');
-  document.getElementById('im-name').focus();
 }
 
 function closeItemModal() {

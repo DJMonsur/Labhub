@@ -181,6 +181,12 @@
 
       <!-- PAGE 2: Item Details -->
       <div id="page-details" class="page">
+        <div style="width:100%;max-width:880px;margin-bottom:12px;">
+          <button class="btn-back" onclick="navigateTo('page-grid')" aria-label="Back to inventory" style="width:auto;padding:0 14px;height:36px;gap:6px;">
+            <svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+            Back to Inventory
+          </button>
+        </div>
         <div class="details-container">
           <div class="details-left">
             <div class="item-text">
@@ -253,9 +259,6 @@
                         onclick="removeCurrentFromCart()" style="display:none">
                   <svg class="ico" viewBox="0 0 24 24"><use href="#i-close"/></svg> Remove
                 </button>
-                <button class="btn-back" onclick="navigateTo('page-grid')" aria-label="Back to inventory">
-                  <svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg>
-                </button>
               </div>
             </div>
           </div>
@@ -264,6 +267,12 @@
 
       <!-- PAGE 3: Borrow Form -->
       <div id="page-form" class="page">
+        <div style="width:100%;max-width:820px;margin-bottom:12px;">
+          <button class="btn-back" onclick="navigateTo('page-grid')" aria-label="Back to inventory" style="width:auto;padding:0 14px;height:36px;gap:6px;">
+            <svg class="ico" viewBox="0 0 24 24"><use href="#i-back"/></svg>
+            Back to Inventory
+          </button>
+        </div>
         <div class="form-container">
           <div class="lab-form" id="lab-form">
             <!-- ── HEADER ── -->
@@ -483,6 +492,24 @@
   let currentFactor = 1;        // factor to the item's stored unit
   let currentPrimaryType = 'all';
   let layoutMode = 'list';
+
+  // Persist cart to localStorage
+  function saveCart() {
+    try {
+      localStorage.setItem('labhub-cart', JSON.stringify(cart));
+    } catch (e) {}
+  }
+
+  function loadCart() {
+    try {
+      const saved = localStorage.getItem('labhub-cart');
+      if (saved) {
+        cart = JSON.parse(saved);
+      }
+    } catch (e) {
+      cart = [];
+    }
+  }
 
   // Remember the preferred layout across visits.
   (function loadLayoutPreference() {
@@ -985,6 +1012,7 @@
       cart.push({ item: currentItem, qty, unit: currentUnit, factor: currentFactor });
       showToast(`${currentItem.name} added to cart`, 'success');
     }
+    saveCart();
     updateCartBadge();
     updateDetailButtons();
   }
@@ -993,6 +1021,7 @@
     const idx = cart.findIndex(c => c.item.id === currentItem.id);
     if (idx === -1) return;
     cart.splice(idx, 1);
+    saveCart();
     updateCartBadge();
     document.getElementById('det-qty').value = currentItem.qty_step || 1;
     showToast(`${currentItem.name} removed from cart`, '');
@@ -1390,6 +1419,7 @@
          <strong>Items:</strong><br>${itemLines.replace(/\n/g, '<br>')}`;
 
       cart = [];
+      saveCart();
       updateCartBadge();
       navigateTo('page-success');
 
@@ -1421,12 +1451,11 @@
       const existingPdfBytes = await fetch(url).then(res => res.arrayBuffer());
       const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
       const pdfDoc = await PDFDocument.load(existingPdfBytes);
-      const page = pdfDoc.getPages()[0];
-      const { height } = page.getSize();
       const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
 
-      const drawTxt = (text, x, y, size = 10) => {
+      const drawTxt = (page, text, x, y, size = 10) => {
         if (text == null || text === '') return;
+        const { height } = page.getSize();
         page.drawText(String(text), {
           x, y: height - y, size, font, color: rgb(0, 0, 0),
         });
@@ -1474,33 +1503,9 @@
         return lines.length ? lines : [''];
       };
 
-      drawTxt('CAR', 105, 63);
-      drawTxt(controlNo, 405, 115);
-      drawTxt(computeSchoolYear(), 495, 115);
-
-      drawTxt(document.getElementById('f-section').value, 180, 131);
-      drawTxt(document.getElementById('f-num-students')?.value || '', 455, 131);
-      drawTxt(document.getElementById('f-purpose').value, 100, 147);
-      drawTxt(document.getElementById('f-topic')?.value || '', 430, 147);
-      drawTxt(document.getElementById('f-unit')?.value || '', 85, 163);
-      drawTxt(document.getElementById('f-teacher').value, 440, 163);
-      drawTxt(document.getElementById('f-venue')?.value || '', 200, 179);
-
-      const dt = document.getElementById('f-datetime').value;
-      const ret = document.getElementById('f-return').value;
-      let dateStr = '', timeStr = '';
-      if (dt) {
-        dateStr = dt.split('T')[0];
-        timeStr = dt.split('T')[1];
-        if (ret && ret !== dateStr) dateStr += ' to ' + ret;
-      }
-      drawTxt(dateStr, 180, 195);
-      drawTxt(timeStr, 465, 195);
-
-      // Materials table — wipe the fixed template body and redraw to fit content
       const tableLeft = 50;
       const tableRight = 562;
-      const tableTop = 259;   // below header row (page-top coords)
+      const tableTop = 259;
       const tableBottom = 421;
       const colXs = [50, 110, 210, 382, 472, 562];
       const textPad = 4;
@@ -1509,13 +1514,12 @@
         colXs[2] - colXs[1] - textPad * 2,
         colXs[3] - colXs[2] - textPad * 2,
       ];
+      const availH = tableBottom - tableTop;
 
-      const buildRows = (fontSize, lineHeight, vPad) => items.map((c) => {
+      const buildRow = (c, fontSize, lineHeight, vPad) => {
         const qtyText = (c.qty == null || c.qty === '')
           ? ''
           : `${fmtNum(c.qty)} ${c.unit || c.item.display_unit || ''}`.trim();
-        // A number is never word-wrapped — it's fitted with fitFont instead so
-        // 0.75 kg shows in full (previously wrapText clipped it to "0.7").
         const qtyLines = qtyText ? [qtyText] : [''];
         const nameLines = wrapText(c.item.name, fontSize, colTextMax[1]);
         const descLines = wrapText(c.item.type_label || c.item.type, fontSize, colTextMax[2]);
@@ -1524,139 +1528,194 @@
           qtyLines, nameLines, descLines,
           height: Math.max(lineCount * lineHeight + vPad * 2, lineHeight + vPad * 2),
         };
-      });
+      };
 
-      let fontSize = 9;
-      let lineHeight = 11;
-      let vPad = 3;
-      let rows = buildRows(fontSize, lineHeight, vPad);
-      let totalH = rows.reduce((s, r) => s + r.height, 0);
-      const availH = tableBottom - tableTop;
-
-      while (totalH > availH && fontSize > 6) {
-        fontSize -= 0.5;
-        lineHeight = fontSize + 2;
-        vPad = fontSize >= 8 ? 3 : 2;
-        rows = buildRows(fontSize, lineHeight, vPad);
-        totalH = rows.reduce((s, r) => s + r.height, 0);
+      const pages = [];
+      let currentPageItems = [];
+      let currentTotalH = 0;
+      for (let i = 0; i < items.length; i++) {
+        const testRow = buildRow(items[i], 9, 11, 3);
+        if (currentTotalH + testRow.height > availH && currentPageItems.length > 0) {
+          pages.push({ items: [...currentPageItems] });
+          currentPageItems = [];
+          currentTotalH = 0;
+        }
+        currentPageItems.push(items[i]);
+        currentTotalH += testRow.height;
+      }
+      if (currentPageItems.length > 0 || pages.length === 0) {
+        pages.push({ items: currentPageItems });
       }
 
-      // If still overflowing, compress row padding proportionally
-      const scale = totalH > availH ? availH / totalH : 1;
-      if (scale < 1) {
-        rows.forEach((r) => { r.height *= scale; });
-        lineHeight *= scale;
-        vPad *= scale;
+      pages.forEach(p => {
+        let fontSize = 9;
+        let lineHeight = 11;
+        let vPad = 3;
+        let rows = p.items.map(c => buildRow(c, fontSize, lineHeight, vPad));
+        let totalH = rows.reduce((s, r) => s + r.height, 0);
+        while (totalH > availH && fontSize > 6) {
+          fontSize -= 0.5;
+          lineHeight = fontSize + 2;
+          vPad = fontSize >= 8 ? 3 : 2;
+          rows = p.items.map(c => buildRow(c, fontSize, lineHeight, vPad));
+          totalH = rows.reduce((s, r) => s + r.height, 0);
+        }
+        const scale = totalH > availH ? availH / totalH : 1;
+        if (scale < 1) {
+          lineHeight *= scale;
+          vPad *= scale;
+        }
+        p.fontSize = fontSize;
+        p.lineHeight = lineHeight;
+        p.vPad = vPad;
+        p._rows = p.items.map(c => buildRow(c, fontSize, lineHeight, vPad));
+      });
+
+      const allPages = [];
+      allPages.push(pdfDoc.getPages()[0]);
+      for (let p = 1; p < pages.length; p++) {
+        const [copiedPage] = await pdfDoc.copyPages(pdfDoc, [0]);
+        pdfDoc.addPage(copiedPage);
+        allPages.push(copiedPage);
       }
 
-      page.drawRectangle({
-        x: tableLeft,
-        y: height - tableBottom,
-        width: tableRight - tableLeft,
-        height: tableBottom - tableTop,
-        color: rgb(1, 1, 1),
-      });
+      pages.forEach((pageData, pageIdx) => {
+        const page = allPages[pageIdx];
+        const { height } = page.getSize();
 
-      // Outer border + column rules
-      page.drawRectangle({
-        x: tableLeft,
-        y: height - tableBottom,
-        width: tableRight - tableLeft,
-        height: tableBottom - tableTop,
-        borderColor: rgb(0, 0, 0),
-        borderWidth: 1,
-      });
-      for (let i = 1; i < colXs.length - 1; i++) {
-        page.drawLine({
-          start: { x: colXs[i], y: height - tableTop },
-          end:   { x: colXs[i], y: height - tableBottom },
-          thickness: 0.75,
-          color: rgb(0, 0, 0),
-        });
-      }
+        // Header fields (control no., section, teacher, dates, borrower and
+        // group names) are drawn on EVERY page. Continuation pages are copies
+        // of the template's first page, so without this they would only show
+        // the item table and lose all the request details.
+        drawTxt(page, 'CAR', 105, 63);
+        drawTxt(page, controlNo, 405, 115);
+        drawTxt(page, computeSchoolYear(), 495, 115);
 
-      let yCursor = tableTop;
-      rows.forEach((row) => {
-        const rowBottom = yCursor + row.height;
-        page.drawLine({
-          start: { x: tableLeft, y: height - rowBottom },
-          end:   { x: tableRight, y: height - rowBottom },
-          thickness: 0.75,
-          color: rgb(0, 0, 0),
+        drawTxt(page, document.getElementById('f-section').value, 180, 131);
+        drawTxt(page, document.getElementById('f-num-students')?.value || '', 455, 131);
+        drawTxt(page, document.getElementById('f-purpose').value, 100, 147);
+        drawTxt(page, document.getElementById('f-topic')?.value || '', 430, 147);
+        drawTxt(page, document.getElementById('f-unit')?.value || '', 85, 163);
+        drawTxt(page, document.getElementById('f-teacher').value, 440, 163);
+        drawTxt(page, document.getElementById('f-venue')?.value || '', 200, 179);
+
+        const dt = document.getElementById('f-datetime').value;
+        const ret = document.getElementById('f-return').value;
+        let dateStr = '', timeStr = '';
+        if (dt) {
+          dateStr = dt.split('T')[0];
+          timeStr = dt.split('T')[1];
+          if (ret && ret !== dateStr) dateStr += ' to ' + ret;
+        }
+        drawTxt(page, dateStr, 180, 195);
+        drawTxt(page, timeStr, 465, 195);
+
+        drawTxt(page, document.getElementById('f-name').value, 130, 553);
+        drawTxt(page, formatDateRequested(), 515, 553);
+
+        const groupNames = getGroupNames();
+        const groupLeft = 155;
+        const groupMaxW = 400 - 155;
+        const groupAreaTop = 596;
+        const groupAreaBottom = 690;
+
+        page.drawRectangle({
+          x: 145,
+          y: height - groupAreaBottom,
+          width: 265,
+          height: groupAreaBottom - groupAreaTop,
+          color: rgb(1, 1, 1),
         });
 
-        const textTop = yCursor + vPad + fontSize;
-        row.qtyLines.forEach((line, i) => {
-          // Right-align the quantity and shrink it until it fits one line.
-          const fs = fitFont(line, fontSize, colTextMax[0]);
-          drawTxt(line, colXs[1] - textPad - textWidth(line, fs), textTop + i * lineHeight, fs);
-        });
-        row.nameLines.forEach((line, i) => {
-          drawTxt(line, colXs[1] + textPad, textTop + i * lineHeight, fontSize);
-        });
-        row.descLines.forEach((line, i) => {
-          drawTxt(line, colXs[2] + textPad, textTop + i * lineHeight, fontSize);
+        let gFont = 9;
+        let gLine = 12;
+        let gLines = [];
+        groupNames.forEach((name) => {
+          wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
         });
 
-        yCursor = rowBottom;
-      });
+        while (gLines.length * gLine > (groupAreaBottom - groupAreaTop) && gFont > 6) {
+          gFont -= 0.5;
+          gLine = gFont + 3;
+          gLines = [];
+          groupNames.forEach((name) => {
+            wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
+          });
+        }
 
-      // Fill remaining empty space with blank rows so the grid still looks complete
-      while (yCursor < tableBottom - 1) {
-        const leftover = tableBottom - yCursor;
-        const h = Math.min(18, leftover);
-        const rowBottom = yCursor + h;
-        if (rowBottom < tableBottom - 0.5) {
+        let gY = groupAreaTop + gFont;
+        gLines.forEach((line) => {
+          if (gY > groupAreaBottom) return;
+          drawTxt(page, line, groupLeft, gY, gFont);
+          gY += gLine;
+        });
+
+        page.drawRectangle({
+          x: tableLeft,
+          y: height - tableBottom,
+          width: tableRight - tableLeft,
+          height: tableBottom - tableTop,
+          color: rgb(1, 1, 1),
+        });
+
+        page.drawRectangle({
+          x: tableLeft,
+          y: height - tableBottom,
+          width: tableRight - tableLeft,
+          height: tableBottom - tableTop,
+          borderColor: rgb(0, 0, 0),
+          borderWidth: 1,
+        });
+        for (let i = 1; i < colXs.length - 1; i++) {
+          page.drawLine({
+            start: { x: colXs[i], y: height - tableTop },
+            end:   { x: colXs[i], y: height - tableBottom },
+            thickness: 0.75,
+            color: rgb(0, 0, 0),
+          });
+        }
+
+        let yCursor = tableTop;
+        const rows = pageData._rows || [];
+        rows.forEach((row) => {
+          const rowBottom = yCursor + row.height;
           page.drawLine({
             start: { x: tableLeft, y: height - rowBottom },
             end:   { x: tableRight, y: height - rowBottom },
             thickness: 0.75,
             color: rgb(0, 0, 0),
           });
-        }
-        yCursor = rowBottom;
-        if (h < 18) break;
-      }
 
-      drawTxt(document.getElementById('f-name').value, 130, 553);
-      drawTxt(formatDateRequested(), 515, 553);
+          const textTop = yCursor + pageData.vPad + pageData.fontSize;
+          row.qtyLines.forEach((line, i) => {
+            const fs = fitFont(line, pageData.fontSize, colTextMax[0]);
+            drawTxt(page, line, colXs[1] - textPad - textWidth(line, fs), textTop + i * pageData.lineHeight, fs);
+          });
+          row.nameLines.forEach((line, i) => {
+            drawTxt(page, line, colXs[1] + textPad, textTop + i * pageData.lineHeight, pageData.fontSize);
+          });
+          row.descLines.forEach((line, i) => {
+            drawTxt(page, line, colXs[2] + textPad, textTop + i * pageData.lineHeight, pageData.fontSize);
+          });
 
-      // Group names — default 5 line slots on the template; overflow continues below
-      const groupNames = getGroupNames();
-      const groupLeft = 155;
-      const groupMaxW = 400 - 155;
-      const groupAreaTop = 596;
-      const groupAreaBottom = 690;
-
-      page.drawRectangle({
-        x: 145,
-        y: height - groupAreaBottom,
-        width: 265,
-        height: groupAreaBottom - groupAreaTop,
-        color: rgb(1, 1, 1),
-      });
-
-      let gFont = 9;
-      let gLine = 12;
-      let gLines = [];
-      groupNames.forEach((name) => {
-        wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
-      });
-
-      while (gLines.length * gLine > (groupAreaBottom - groupAreaTop) && gFont > 6) {
-        gFont -= 0.5;
-        gLine = gFont + 3;
-        gLines = [];
-        groupNames.forEach((name) => {
-          wrapText(name, gFont, groupMaxW).forEach((ln) => gLines.push(ln));
+          yCursor = rowBottom;
         });
-      }
 
-      let gY = groupAreaTop + gFont;
-      gLines.forEach((line) => {
-        if (gY > groupAreaBottom) return;
-        drawTxt(line, groupLeft, gY, gFont);
-        gY += gLine;
+        while (yCursor < tableBottom - 1) {
+          const leftover = tableBottom - yCursor;
+          const h = Math.min(18, leftover);
+          const rowBottom = yCursor + h;
+          if (rowBottom < tableBottom - 0.5) {
+            page.drawLine({
+              start: { x: tableLeft, y: height - rowBottom },
+              end:   { x: tableRight, y: height - rowBottom },
+              thickness: 0.75,
+              color: rgb(0, 0, 0),
+            });
+          }
+          yCursor = rowBottom;
+          if (h < 18) break;
+        }
       });
 
       const pdfBytes = await pdfDoc.save();
@@ -1673,7 +1732,11 @@
     }
   }
 
+
   function startOver() {
+    cart = [];
+    saveCart();
+    updateCartBadge();
     ['f-section','f-teacher','f-purpose','f-datetime','f-return','f-notes']
       .forEach(id => document.getElementById(id).value = '');
     const roleEl = document.getElementById('f-role');
@@ -1779,6 +1842,8 @@
   // ═══════════════════════════════════════════════════════════════════════════
   //  INIT
   // ═══════════════════════════════════════════════════════════════════════════
+  loadCart();
+  updateCartBadge();
   // Debounced search — filtering 547 items on every keystroke was the one
   // place the UI could visibly stutter on a slower phone.
   (function wireSearch() {
